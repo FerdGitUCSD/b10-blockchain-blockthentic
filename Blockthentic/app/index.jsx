@@ -1,10 +1,9 @@
-// app/index.jsx
-import React, { useState } from 'react'; // Added useState for the dropdowns
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAppKit, useAppKitAccount } from '@reown/appkit-react-native';
 
-// --- NEW COMPONENT: AccordionItem ---
-// This handles the "Dropdown" logic specifically for this page
+// Accordion component for FAQ
 function AccordionItem({ title, children }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -16,11 +15,9 @@ function AccordionItem({ title, children }) {
         activeOpacity={0.7}
       >
         <Text style={styles.accordionTitle}>{title}</Text>
-        {/* Simple +/- indicator for open/close state */}
         <Text style={styles.accordionIcon}>{expanded ? '−' : '+'}</Text>
       </TouchableOpacity>
       
-      {/* Only show content if expanded is true */}
       {expanded && (
         <View style={styles.accordionContent}>
           {children}
@@ -32,16 +29,17 @@ function AccordionItem({ title, children }) {
 
 export default function Home() {
   const router = useRouter();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
 
   return (
     <View style={styles.container}>
-      {/* ScrollView */}
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         
-        {/* --- LOGO SECTION --- */}
+        {/* Logo Section */}
         <Text style={styles.title}>Blockthentic</Text>
         <Text style={styles.subtitle}>Secure Document Verification</Text>
         
@@ -49,38 +47,58 @@ export default function Home() {
           Blockthentic helps you instantly verify the authenticity of important documents using blockchain technology. Create secure contracts and prevent fraud with ease!
         </Text>
 
-        {/* Get Started Button */}
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={() => router.push('/create')}
-        >
-          <Text style={styles.buttonText}>Get Started</Text>
-        </TouchableOpacity>
+        {/* Wallet Connection Section */}
+        {isConnected ? (
+          <View style={styles.walletContainer}>
+            <Text style={styles.connectedLabel}>Wallet Connected</Text>
+            <Text style={styles.addressText}>
+              {address?.slice(0, 6)}...{address?.slice(-4)}
+            </Text>
+            <TouchableOpacity 
+              style={styles.button}
+              onPress={() => open()}
+            >
+              <Text style={styles.buttonText}>Wallet Settings</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, { marginTop: 10 }]}
+              onPress={() => router.push('/create')}
+            >
+              <Text style={styles.buttonText}>Create Contract</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => open()}
+          >
+            <Text style={styles.buttonText}>Connect Wallet</Text>
+          </TouchableOpacity>
+        )}
         
-        {/* --- FAQ / DROPDOWN SECTION --- */}
+        {/* FAQ Section */}
         <View style={styles.faqSection}>
           <Text style={styles.faqHeader}>Learn More</Text>
 
-          {/* Dropdown 1: How It Works */}
           <AccordionItem title="How It Works">
             <Text style={styles.accordionText}>
-              1. <Text style={{fontWeight: 'bold'}}>Create</Text> a Verification Contract for your document.{'\n\n'}
-              2. <Text style={{fontWeight: 'bold'}}>Share</Text> the contract with recipients or merge with your own platform.{'\n\n'}
-              3. <Text style={{fontWeight: 'bold'}}>Verify</Text> the document's authenticity on the blockchain instantly.
+              1. <Text style={{fontWeight: 'bold'}}>Connect</Text> your Ethereum wallet (MetaMask, Rainbow, etc.){'\n\n'}
+              2. <Text style={{fontWeight: 'bold'}}>Create</Text> a Verification Contract for your document.{'\n\n'}
+              3. <Text style={{fontWeight: 'bold'}}>Share</Text> the contract with recipients.{'\n\n'}
+              4. <Text style={{fontWeight: 'bold'}}>Verify</Text> the document's authenticity on the blockchain instantly.
             </Text>
           </AccordionItem>
 
-          {/* Dropdown 2: Security Info */}
           <AccordionItem title="What Makes It Secure?">
             <Text style={styles.accordionText}>
               Blockthentic leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with.
             </Text>
           </AccordionItem>
           
-           {/* Dropdown 3: Pricing (Example of adding more easily) */}
-           <AccordionItem title="Is it free?">
+          <AccordionItem title="Is it free?">
             <Text style={styles.accordionText}>
-              Yes, getting started is free! (ADD MORE)
+              Yes, getting started is free! You only pay network gas fees when creating contracts on the blockchain.
             </Text>
           </AccordionItem>
         </View>
@@ -131,7 +149,6 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     width: '100%',
     alignItems: 'center',
-    marginBottom: 40, // Added margin to push the FAQ down
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -143,18 +160,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  
-  // STYLES FOR ACCORDION / DROPDOWNS
+  walletContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 40,
+    padding: 20,
+    backgroundColor: '#f0f4f8',
+    borderRadius: 15,
+  },
+  connectedLabel: {
+    fontSize: 14,
+    color: '#28a745',
+    fontWeight: '600',
+    marginBottom: 5,
+  },
+  addressText: {
+    fontSize: 16,
+    color: '#003262',
+    fontWeight: 'bold',
+    marginBottom: 15,
+    fontFamily: 'monospace',
+  },
   faqSection: {
     width: '100%',
-    marginTop: 10,
+    marginTop: 40,
   },
   faqHeader: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#003262',
     marginBottom: 15,
-    alignSelf: 'flex-start', // Aligns header to the left
+    alignSelf: 'flex-start',
   },
   accordionContainer: {
     marginBottom: 15,
@@ -162,14 +198,14 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
     borderRadius: 10,
     backgroundColor: '#f9f9f9',
-    overflow: 'hidden', // Ensures content stays inside rounded corners
+    overflow: 'hidden',
   },
   accordionHeader: {
-    flexDirection: 'row', // Aligns text and icon horizontally
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    backgroundColor: '#f0f4f8', // Light blue-ish gray
+    backgroundColor: '#f0f4f8',
   },
   accordionTitle: {
     fontSize: 16,
