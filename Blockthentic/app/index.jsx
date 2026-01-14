@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppKit, useAppKitAccount } from '@reown/appkit-react-native';
+import { useAppKit } from '@reown/appkit-react-native';
+import { useAccount } from 'wagmi';
 
 // Accordion component for FAQ
 function AccordionItem({ title, children }) {
@@ -30,7 +31,7 @@ function AccordionItem({ title, children }) {
 export default function Home() {
   const router = useRouter();
   const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
+  const { address, isConnected } = useAccount();
 
   return (
     <View style={styles.container}>

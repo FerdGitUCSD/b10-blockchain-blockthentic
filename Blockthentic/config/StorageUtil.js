@@ -1,22 +1,28 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeJsonParse, safeJsonStringify } from '@walletconnect/safe-json';
 
 export const storage = {
-  async getKeys() {
+  getKeys: async () => {
     return await AsyncStorage.getAllKeys();
   },
-  async getEntries() {
+  getEntries: async () => {
     const keys = await AsyncStorage.getAllKeys();
-    const entries = await AsyncStorage.multiGet(keys);
-    return entries.map(([key, value]) => [key, value ? JSON.parse(value) : undefined]);
+    return await Promise.all(keys.map(async key => [
+      key,
+      safeJsonParse(await AsyncStorage.getItem(key) ?? ''),
+    ]));
   },
-  async getItem(key) {
-    const value = await AsyncStorage.getItem(key);
-    return value ? JSON.parse(value) : undefined;
+  setItem: async (key, value) => {
+    await AsyncStorage.setItem(key, safeJsonStringify(value));
   },
-  async setItem(key, value) {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+  getItem: async (key) => {
+    const item = await AsyncStorage.getItem(key);
+    if (typeof item === 'undefined' || item === null) {
+      return undefined;
+    }
+    return safeJsonParse(item);
   },
-  async removeItem(key) {
+  removeItem: async (key) => {
     await AsyncStorage.removeItem(key);
   },
 };

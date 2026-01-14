@@ -1,42 +1,13 @@
 import "@walletconnect/react-native-compat";
 import { createAppKit } from "@reown/appkit-react-native";
-import { EthersAdapter } from "@reown/appkit-ethers-react-native";
+import { WagmiAdapter } from "@reown/appkit-wagmi-react-native";
+import { mainnet, sepolia } from "@wagmi/core/chains";
 import { storage } from "./StorageUtil";
 
+// 1. Project ID from Reown Cloud
 const projectId = "0cce245d34bb09adb3aadf8f9616a9bc";
 
-const mainnet = {
-  id: 1,
-  chainId: 1,
-  name: "Ethereum",
-  currency: "ETH",
-  explorerUrl: "https://etherscan.io",
-  rpcUrl: "https://cloudflare-eth.com",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://cloudflare-eth.com"] },
-  },
-  blockExplorers: {
-    default: { name: "Etherscan", url: "https://etherscan.io" },
-  },
-};
-
-const sepolia = {
-  id: 11155111,
-  chainId: 11155111,
-  name: "Sepolia",
-  currency: "ETH",
-  explorerUrl: "https://sepolia.etherscan.io",
-  rpcUrl: "https://rpc.sepolia.org",
-  nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://rpc.sepolia.org"] },
-  },
-  blockExplorers: {
-    default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
-  },
-};
-
+// 2. App metadata
 const metadata = {
   name: "Blockthentic",
   description: "Document verification on blockchain",
@@ -47,13 +18,22 @@ const metadata = {
   },
 };
 
-const ethersAdapter = new EthersAdapter();
+// 3. Define networks
+const networks = [mainnet, sepolia];
 
+// 4. Create Wagmi adapter
+export const wagmiAdapter = new WagmiAdapter({
+  projectId,
+  networks,
+});
+
+// 5. Create AppKit instance
 export const appKit = createAppKit({
   projectId,
   metadata,
-  networks: [mainnet, sepolia],
+  networks,
   defaultNetwork: mainnet,
-  adapters: [ethersAdapter],
-  storage: storage,
+  adapters: [wagmiAdapter],
+  storage,
+  enableAnalytics: false,
 });
