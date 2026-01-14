@@ -1,193 +1,326 @@
 // app/index.jsx
-import React, { useState } from 'react'; // Added useState for the dropdowns
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Modal, 
+  Animated, 
+  LayoutAnimation, 
+  Platform, 
+  UIManager,
+  ScrollView,
+  SafeAreaView
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 
-// --- NEW COMPONENT: AccordionItem ---
-// This handles the "Dropdown" logic specifically for this page
-function AccordionItem({ title, children }) {
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// --- COMPONENT: Accordion Dropdown ---
+const AccordionItem = ({ title, content }) => {
   const [expanded, setExpanded] = useState(false);
+
+  const toggleExpand = () => {
+    LayoutAnimation.configureNext({
+      duration: 200,
+      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+      update: { type: LayoutAnimation.Types.easeInEaseOut },
+      delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    });
+    
+    setExpanded(!expanded);
+  };
 
   return (
     <View style={styles.accordionContainer}>
       <TouchableOpacity 
         style={styles.accordionHeader} 
-        onPress={() => setExpanded(!expanded)}
+        onPress={toggleExpand} 
         activeOpacity={0.7}
       >
         <Text style={styles.accordionTitle}>{title}</Text>
-        {/* Simple +/- indicator for open/close state */}
-        <Text style={styles.accordionIcon}>{expanded ? '−' : '+'}</Text>
+        <Ionicons 
+          name={expanded ? "chevron-up" : "chevron-forward"} 
+          size={28} 
+          color="#003262"
+          style={{ fontWeight: 'bold' }} 
+        />
       </TouchableOpacity>
-      
-      {/* Only show content if expanded is true */}
       {expanded && (
         <View style={styles.accordionContent}>
-          {children}
+          <Text style={styles.accordionText}>{content}</Text>
         </View>
       )}
+      {/* Divider Line */}
+      <View style={styles.divider} />
     </View>
   );
-}
+};
 
 export default function Home() {
   const router = useRouter();
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const mainContentOpacity = fadeAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  const openLearnMore = () => {
+    setModalVisible(true);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeLearnMore = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => setModalVisible(false));
+  };
 
   return (
     <View style={styles.container}>
-      {/* ScrollView */}
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      
+      {/* 1. Main Background Gradient */}
+      <LinearGradient
+        colors={['#bdc8feff', '#fef4d3ff']}
+        style={styles.background}
+      />
+
+      {/* 2. Main Landing Content */}
+      <Animated.View 
+        style={[styles.mainContent, { opacity: mainContentOpacity }]}
       >
-        
-        {/* --- LOGO SECTION --- */}
-        <Text style={styles.title}>Blockthentic</Text>
-        <Text style={styles.subtitle}>Secure Document Verification</Text>
-        
-        <Text style={styles.description}>
-          Blockthentic helps you instantly verify the authenticity of important documents using blockchain technology. Create secure contracts and prevent fraud with ease!
-        </Text>
-
-        {/* Get Started Button */}
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={() => router.push('/create')}
-        >
-          <Text style={styles.buttonText}>Get Started</Text>
-        </TouchableOpacity>
-        
-        {/* --- FAQ / DROPDOWN SECTION --- */}
-        <View style={styles.faqSection}>
-          <Text style={styles.faqHeader}>Learn More</Text>
-
-          {/* Dropdown 1: How It Works */}
-          <AccordionItem title="How It Works">
-            <Text style={styles.accordionText}>
-              1. <Text style={{fontWeight: 'bold'}}>Create</Text> a Verification Contract for your document.{'\n\n'}
-              2. <Text style={{fontWeight: 'bold'}}>Share</Text> the contract with recipients or merge with your own platform.{'\n\n'}
-              3. <Text style={{fontWeight: 'bold'}}>Verify</Text> the document's authenticity on the blockchain instantly.
-            </Text>
-          </AccordionItem>
-
-          {/* Dropdown 2: Security Info */}
-          <AccordionItem title="What Makes It Secure?">
-            <Text style={styles.accordionText}>
-              Blockthentic leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with.
-            </Text>
-          </AccordionItem>
-          
-           {/* Dropdown 3: Pricing (Example of adding more easily) */}
-           <AccordionItem title="Is it free?">
-            <Text style={styles.accordionText}>
-              Yes, getting started is free! (ADD MORE)
-            </Text>
-          </AccordionItem>
+        <View style={styles.headerSection}>
+          <Text style={styles.welcomeText}>Welcome to</Text>
+          <Text style={styles.brandText}>Blockthentic</Text>
         </View>
 
-      </ScrollView>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.primaryButton} onPress={openLearnMore}>
+            <Text style={styles.primaryButtonText}>Learn More</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.secondaryButton}
+            onPress={() => console.log("Navigating to Sign In...")} 
+          >
+            <Text style={styles.secondaryButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+
+      {/* 3. Learn More Overlay (Modal) */}
+      <Modal
+        animationType="none"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={closeLearnMore}
+      >
+        <Animated.View 
+          style={[styles.absoluteFill, { opacity: fadeAnim }]}
+        >
+          <BlurView intensity={20} tint="light" style={styles.absoluteFill}>
+            
+            <View style={styles.modalContainer}>
+              
+              {/* Modal Content Background (Gradient) */}
+              <LinearGradient
+                colors={['#bdc8feff', '#fef4d3ff']}
+                style={styles.modalContent}
+              >
+                <SafeAreaView style={{flex: 1}}>
+                    <ScrollView 
+                      contentContainerStyle={styles.scrollContent}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <AccordionItem 
+                        title="How does this work?" 
+                        content="Create a verification contract for your document. Share the contract with recipients or merge with your own platform. Verify the document’s authenticity on the blockchain instantly." 
+                      />
+                      <AccordionItem 
+                        title="How is this secure?" 
+                        content="Blockthentic leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with." 
+                      />
+                      <AccordionItem 
+                        title="Is this free?" 
+                        content="Yes, getting started is free! We offer premium tiers for enterprise-level volume verification. (More details coming soon)" 
+                      />
+                    </ScrollView>
+
+
+                  {/* Bottom Back Button */}
+                  <TouchableOpacity onPress={closeLearnMore} style={styles.bottomBackButton}>
+                    <Text style={styles.bottomBackText}>Back</Text>
+                  </TouchableOpacity>
+
+                </SafeAreaView>
+              </LinearGradient>
+            </View>
+          </BlurView>
+        </Animated.View>
+      </Modal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // --- Main Screen Styles ---
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'flex-start',
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '100%',
+  },
+  mainContent: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 80,
-    paddingBottom: 50,
+    paddingHorizontal: 20,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
+  headerSection: {
+    marginBottom: 80,
+    alignItems: 'center',
+  },
+  welcomeText: {
+    fontSize: 28,
     color: '#003262',
-    marginBottom: 10,
-    textAlign: 'center',
+    fontWeight: '400',
+    marginBottom: 5,
   },
-  subtitle: {
-    fontSize: 20,
-    color: '#666',
-    marginBottom: 20,
-    textAlign: 'center',
+  brandText: {
+    fontSize: 42,
+    color: '#003262',
+    fontWeight: '900',
+    letterSpacing: -1,
   },
-  description: {
-    fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 30,
-    paddingHorizontal: 10,
-  },
-  button: {
-    backgroundColor: '#003262',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
+  buttonContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 40, // Added margin to push the FAQ down
+    gap: 15,
+  },
+  primaryButton: {
+    backgroundColor: '#6b88c8',
+    paddingVertical: 16,
+    width: '60%',
+    borderRadius: 50,
+    alignItems: 'center',
+    shadowColor: '#6b88c8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '400',
+  },
+  secondaryButton: {
+    backgroundColor: '#6b88c8',
+    paddingVertical: 16,
+    width: '60%',
+    borderRadius: 50,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  buttonText: {
-    color: '#FDB515',
+  secondaryButtonText: {
+    color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
+  },
+
+  // --- Modal / Overlay Styles ---
+  absoluteFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  modalContent: {
+    flex: 1,
+  },
+  centeredContentWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: 25,
+    flexGrow: 1, 
+    justifyContent: 'center',
+    fontWeight: '500',
   },
   
-  // STYLES FOR ACCORDION / DROPDOWNS
-  faqSection: {
-    width: '100%',
-    marginTop: 10,
-  },
-  faqHeader: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#003262',
-    marginBottom: 15,
-    alignSelf: 'flex-start', // Aligns header to the left
-  },
+  // --- Accordion Styles ---
   accordionContainer: {
     marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 10,
-    backgroundColor: '#f9f9f9',
-    overflow: 'hidden', // Ensures content stays inside rounded corners
+    marginLeft: 10,
+    marginRight: 10,
   },
   accordionHeader: {
-    flexDirection: 'row', // Aligns text and icon horizontally
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#f0f4f8', // Light blue-ish gray
+    paddingVertical: 15,
   },
   accordionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  accordionIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
     color: '#003262',
+    fontWeight: '400',
   },
   accordionContent: {
-    padding: 15,
-    backgroundColor: '#fff',
+    paddingVertical: 10,
   },
   accordionText: {
-    fontSize: 15,
-    color: '#555',
-    lineHeight: 22,
+    fontSize: 16,
+    color: '#34495E',
+    lineHeight: 24,
   },
+  divider: {
+    height: 2, 
+    backgroundColor: '#003262',
+    marginTop: 5,
+  },
+  
+  // --- Bottom Back Button ---
+  bottomBackButton: {
+    alignSelf: 'center',
+    marginBottom: 50,
+    padding: 20, 
+  },
+  bottomBackText: {
+    fontSize: 18,
+    color: '#003262',
+    fontWeight: '500',
+  }
 });

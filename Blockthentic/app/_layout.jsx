@@ -31,6 +31,8 @@ export default function Layout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
+          headerShown: false,           
+          tabBarStyle: { display: 'none' },
         }}
       />
 
