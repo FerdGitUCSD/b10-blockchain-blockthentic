@@ -25,6 +25,7 @@ const networks = [mainnet, sepolia];
 export const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks,
+  //defaultChain: mainnet,
 });
 
 // 5. Create AppKit instance

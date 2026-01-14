@@ -24,9 +24,13 @@ export default function Layout() {
               },
               tabBarActiveTintColor: '#FDB515',
               tabBarInactiveTintColor: '#fff',
-              headerStyle: { backgroundColor: '#003262' },
+              headerStyle: {
+                backgroundColor: '#003262',
+              },
               headerTintColor: '#fff',
-              headerTitleStyle: { fontWeight: 'bold' },
+              headerTitleStyle: {
+                fontWeight: 'bold',
+              },
             }}
           >
             <Tabs.Screen
@@ -36,6 +40,8 @@ export default function Layout() {
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name="home" size={size} color={color} />
                 ),
+                headerShown: false,
+                tabBarStyle: { display: 'none' },
               }}
             />
             <Tabs.Screen
