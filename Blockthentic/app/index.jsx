@@ -107,7 +107,7 @@ export default function Home() {
       >
         <View style={styles.headerSection}>
           <Text style={styles.welcomeText}>Welcome to</Text>
-          <Text style={styles.brandText}>Blockthentic</Text>
+          <Text style={styles.brandText}>Vera</Text>
         </View>
 
         <View style={styles.buttonContainer}>
@@ -154,7 +154,7 @@ export default function Home() {
                       />
                       <AccordionItem 
                         title="How is this secure?" 
-                        content="Blockthentic leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with." 
+                        content="Vera leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with." 
                       />
                       <AccordionItem 
                         title="Is this free?" 
@@ -202,16 +202,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   welcomeText: {
-    fontSize: 28,
+    fontSize: 40,
     color: '#003262',
     fontWeight: '400',
     marginBottom: 5,
   },
   brandText: {
-    fontSize: 42,
+    fontSize: 80,
     color: '#003262',
     fontWeight: '900',
     letterSpacing: -1,
+    fontStyle: 'italic',
   },
   buttonContainer: {
     width: '100%',
