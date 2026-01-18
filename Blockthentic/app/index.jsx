@@ -17,6 +17,8 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppKit } from '@reown/appkit-react-native';
+import { useAccount } from 'wagmi';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -67,6 +69,8 @@ const AccordionItem = ({ title, content }) => {
 export default function Home() {
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
+  const { open } = useAppKit();
+  const { address, isConnected } = useAccount();
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -92,6 +96,12 @@ export default function Home() {
     }).start(() => setModalVisible(false));
   };
 
+  const handleTempSignIn = () => {
+    // Replace this line with real auth logic later.
+    // When auth succeeds, call router.replace('/home')
+    router.replace('/home'); 
+  };
+
   return (
     <View style={styles.container}>
       
@@ -110,6 +120,15 @@ export default function Home() {
           <Text style={styles.brandText}>Vera</Text>
         </View>
 
+        {/* Wallet Status Display */}
+        {isConnected && (
+          <View style={styles.walletStatus}>
+            <Text style={styles.connectedText}>
+              Connected: {address?.slice(0, 6)}...{address?.slice(-4)}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.primaryButton} onPress={openLearnMore}>
             <Text style={styles.primaryButtonText}>Learn More</Text>
@@ -117,10 +136,21 @@ export default function Home() {
 
           <TouchableOpacity 
             style={styles.secondaryButton}
-            onPress={() => console.log("Navigating to Sign In...")} 
+            onPress={() => open()} 
           >
-            <Text style={styles.secondaryButtonText}>Sign In</Text>
+            <Text style={styles.secondaryButtonText}>
+              {isConnected ? 'Wallet Settings' : 'Connect Wallet'}
+            </Text>
           </TouchableOpacity>
+
+          {isConnected && (
+            <TouchableOpacity 
+              style={styles.secondaryButton}
+              onPress={() => router.push('/home')} 
+            >
+              <Text style={styles.secondaryButtonText}>Sign In</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
 
@@ -150,7 +180,7 @@ export default function Home() {
                     >
                       <AccordionItem 
                         title="How does this work?" 
-                        content="Create a verification contract for your document. Share the contract with recipients or merge with your own platform. Verify the document’s authenticity on the blockchain instantly." 
+                        content="Create a verification contract for your document. Share the contract with recipients or merge with your own platform. Verify the document's authenticity on the blockchain instantly." 
                       />
                       <AccordionItem 
                         title="How is this secure?" 
@@ -198,7 +228,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   headerSection: {
-    marginBottom: 80,
+    marginBottom: 40,
     alignItems: 'center',
   },
   welcomeText: {
@@ -213,6 +243,18 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: -1,
     fontStyle: 'italic',
+  },
+  walletStatus: {
+    marginBottom: 30,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(107, 136, 200, 0.2)',
+    borderRadius: 20,
+  },
+  connectedText: {
+    color: '#003262',
+    fontSize: 14,
+    fontWeight: '600',
   },
   buttonContainer: {
     width: '100%',
@@ -270,10 +312,6 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
-  },
-  centeredContentWrapper: {
-    flex: 1,
-    justifyContent: 'center',
   },
   scrollContent: {
     paddingHorizontal: 25,
