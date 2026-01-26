@@ -1,0 +1,18 @@
+{
+  "categories": {
+    "documents": {
+      "enum": "enum RevocationReason {\n        NONE,\n        FRAUD,\n        EXPIRED,\n        SUPERSEDED,\n        OWNER_REQUEST,\n        OTHER\n    }"
+    },
+    "images": {
+      "enum": "enum RevocationReason {\n        NONE,\n        COPYRIGHT,\n        MISATTRIBUTION,\n        ALTERED,\n        OWNER_REQUEST,\n        OTHER\n    }"
+    },
+    "datasets": {
+      "enum": "enum RevocationReason {\n        NONE,\n        OUTDATED,\n        CORRUPTED,\n        RETRACTED,\n        OWNER_REQUEST,\n        OTHER\n    }"
+    }
+  },
+  "batchOperations": {
+    "events": "event BatchRegistered(bytes32[] hashes, uint256 timestamp);\n    event BatchRevoked(bytes32[] hashes, RevocationReason reason, uint256 timestamp);",
+    "registerFunction": "function registerBatch(bytes32[] calldata hashes) external onlyVerificationContract {\n        for (uint256 i = 0; i < hashes.length; i++) {\n            require(!registered[hashes[i]], \"Already registered\");\n            registered[hashes[i]] = true;\n        }\n        emit BatchRegistered(hashes, block.timestamp);\n    }",
+    "revokeFunction": "function revokeBatch(bytes32[] calldata hashes, RevocationReason reason) external onlyOwner {\n        require(reason != RevocationReason.NONE, \"Must provide reason\");\n\n        for (uint256 i = 0; i < hashes.length; i++) {\n            require(registered[hashes[i]], \"Not registered\");\n            require(!revoked[hashes[i]], \"Already revoked\");\n\n            revoked[hashes[i]] = true;\n            revocationReasons[hashes[i]] = reason;\n        }\n        emit BatchRevoked(hashes, reason, block.timestamp);\n    }"
+  }
+}
