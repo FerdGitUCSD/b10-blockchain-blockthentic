@@ -7,7 +7,7 @@ const revocationTemplate = fs.readFileSync(path.join(__dirname, 'RevocationRegis
 
 // Load placeholders
 const verificationPlaceholders = JSON.parse(fs.readFileSync(path.join(__dirname, 'documentVerificationPlaceholders.json'), 'utf8'));
-const revocationPlaceholders = JSON.parse(fs.readFileSync(path.join(__dirname, 'placeholders.json'), 'utf8'));
+const revocationPlaceholders = JSON.parse(fs.readFileSync(path.join(__dirname, 'revocationPlaceholders.json'), 'utf8'));
 
 // Map verification categories to revocation categories
 const categoryMapping = {
