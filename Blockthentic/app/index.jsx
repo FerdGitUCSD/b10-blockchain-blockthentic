@@ -1,4 +1,4 @@
-// app/index.jsx
+﻿// app/index.jsx
 import React, { useState, useRef } from 'react';
 import { 
   View, 
@@ -19,6 +19,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppKit } from '@reown/appkit-react-native';
 import { useAccount } from 'wagmi';
+import { useAuth } from '../context/AuthContext';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -71,6 +72,7 @@ export default function Home() {
   const [modalVisible, setModalVisible] = useState(false);
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
+  const auth = useAuth();
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -96,10 +98,12 @@ export default function Home() {
     }).start(() => setModalVisible(false));
   };
 
-  const handleTempSignIn = () => {
-    // Replace this line with real auth logic later.
-    // When auth succeeds, call router.replace('/home')
-    router.replace('/home'); 
+  const handleSignIn = () => {
+    if (auth?.user) {
+      router.replace('/home');
+    } else {
+      router.push('/auth');
+    }
   };
 
   return (
@@ -143,14 +147,15 @@ export default function Home() {
             </Text>
           </TouchableOpacity>
 
-          {isConnected && (
-            <TouchableOpacity 
-              style={styles.secondaryButton}
-              onPress={() => router.push('/home')} 
-            >
-              <Text style={styles.secondaryButtonText}>Sign In</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={styles.secondaryButton}
+            onPress={handleSignIn}
+            disabled={auth?.loading}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {auth?.loading ? 'Loading...' : auth?.user ? 'Enter App' : 'Sign In'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 

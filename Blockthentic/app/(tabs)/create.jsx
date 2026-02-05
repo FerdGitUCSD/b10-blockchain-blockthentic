@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+﻿import React, { useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAccount } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabaseClient';
 
 // --- CONSTANTS & CONFIG ---
 const STEPS = {
@@ -14,7 +16,6 @@ const STEPS = {
   SUCCESS: 4,
 };
 
-// ADDED: Description fields to match the design
 const CONTRACT_TYPES = {
   DOCUMENT: { 
     id: 'document', 
@@ -36,6 +37,13 @@ const CONTRACT_TYPES = {
   },
 };
 
+const CHAINS = [
+  { id: 'ethereum', label: 'Ethereum' },
+  { id: 'polygon', label: 'Polygon' },
+  { id: 'arbitrum', label: 'Arbitrum' },
+  { id: 'solana', label: 'Solana' },
+];
+
 // --- HELPER COMPONENT: Progress Bar ---
 const ProgressBar = ({ currentStep }) => {
   if (currentStep === STEPS.SUCCESS) return null;
@@ -45,22 +53,21 @@ const ProgressBar = ({ currentStep }) => {
     const isActive = currentStep === stepNum;
 
     let bgColor = 'transparent';
-    let borderColor = '#003262'; // Dark blue outline by default
+    let borderColor = '#003262';
     let textColor = '#003262';
     let content = stepNum;
     let thickness = 2;
 
     if (isCompleted) {
-      bgColor = 'transparent'; // Keep transparent but show checkmark
+      bgColor = 'transparent';
       borderColor = '#003262';
       thickness = 3;
       content = <Ionicons name="checkmark" size={18} color="#003262" />;
     } else if (isActive) {
       borderColor = '#003262';
-      thickness = 3; // Thicker border for active
+      thickness = 3;
       textColor = '#003262';
     } else {
-       // Inactive future steps
        borderColor = '#003262';
        textColor = '#003262';
     }
@@ -87,11 +94,14 @@ const ProgressBar = ({ currentStep }) => {
 export default function CreatePage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { user } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
 
   // Form State
   const [currentStep, setCurrentStep] = useState(STEPS.SELECT_TYPE);
   const [formData, setFormData] = useState({
     type: null,
+    chain: null,
     name: '',
     description: '',
     file: null,
@@ -114,9 +124,38 @@ export default function CreatePage() {
     }
   };
 
+  const handleSubmit = async () => {
+    if (!user) {
+      Alert.alert('Sign in required', 'Please sign in to create a contract.');
+      router.replace('/auth');
+      return;
+    }
+    if (!supabase) {
+      Alert.alert('Supabase not configured', 'Please add SUPABASE_URL and SUPABASE_ANON_KEY.');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const { error } = await supabase
+        .from('registries')
+        .insert({
+          owner_id: user.id,
+          name: formData.name,
+          template_type: formData.type,
+          chain: formData.chain,
+        });
+      if (error) throw error;
+      setCurrentStep(STEPS.SUCCESS);
+    } catch (err) {
+      Alert.alert('Create failed', err.message ?? String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleNext = () => {
-    if (currentStep === STEPS.SELECT_TYPE && !formData.type) {
-        alert("Please select a contract type.");
+    if (currentStep === STEPS.SELECT_TYPE && (!formData.type || !formData.chain)) {
+        alert("Please select a contract type and blockchain.");
         return;
     }
     if (currentStep === STEPS.DETAILS_UPLOAD) {
@@ -127,10 +166,15 @@ export default function CreatePage() {
     }
     
     if (currentStep === STEPS.REVIEW) {
-      setCurrentStep(STEPS.SUCCESS);
-    } else {
-      setCurrentStep(currentStep + 1);
+      if (!isConnected) {
+        alert('Please connect your wallet before submitting.');
+        return;
+      }
+      handleSubmit();
+      return;
     }
+
+    setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -138,7 +182,7 @@ export default function CreatePage() {
   };
 
   const resetForm = () => {
-    setFormData({ type: null, name: '', description: '', file: null });
+    setFormData({ type: null, chain: null, name: '', description: '', file: null });
     setCurrentStep(STEPS.SELECT_TYPE);
   };
 
@@ -162,16 +206,32 @@ export default function CreatePage() {
               onPress={() => setFormData({ ...formData, type: item.id })}
             >
               <View style={styles.textContainer}>
-                  {/* Title (Bold, Large) */}
                   <Text style={[styles.boxLabel, isSelected ? styles.selectedText : styles.unselectedText]}>
                     {item.label}
                   </Text>
                   
-                  {/* Description (Smaller, Regular) */}
                   <Text style={[styles.boxDescription, isSelected ? styles.selectedText : styles.unselectedText]}>
                     {item.description}
                   </Text>
               </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.stepSubtitle, { marginTop: 25 }]}>Choose a blockchain</Text>
+      <View style={styles.chainContainer}>
+        {CHAINS.map((chain) => {
+          const isSelected = formData.chain === chain.id;
+          return (
+            <TouchableOpacity
+              key={chain.id}
+              style={[styles.chainChip, isSelected && styles.chainChipActive]}
+              onPress={() => setFormData({ ...formData, chain: chain.id })}
+            >
+              <Text style={[styles.chainChipText, isSelected && styles.chainChipTextActive]}>
+                {chain.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -184,7 +244,6 @@ export default function CreatePage() {
        <Text style={styles.stepTitle}>Upload</Text>
        <Text style={styles.stepSubtitle}>The file will be hashed and stored</Text>
        
-       {/* Upload Area */}
        <TouchableOpacity style={styles.uploadArea} onPress={pickDocument}>
           {formData.file ? (
              <View style={styles.fileInfo}>
@@ -201,7 +260,6 @@ export default function CreatePage() {
           )}
        </TouchableOpacity>
 
-       {/* Inputs */}
        <Text style={styles.inputLabel}>Title</Text>
        <TextInput 
           style={styles.input} 
@@ -228,37 +286,36 @@ export default function CreatePage() {
        <Text style={styles.stepSubtitle}>Review the details before submission</Text>
        
        <View style={styles.reviewList}>
-          
-          {/* Row 1 */}
           <View style={styles.reviewRow}>
              <Text style={styles.reviewLabel}>Type</Text>
              <Text style={styles.reviewValue}>{CONTRACT_TYPES[formData.type?.toUpperCase()]?.label}</Text>
           </View>
           <View style={styles.divider} />
           
-          {/* Row 2 */}
+          <View style={styles.reviewRow}>
+             <Text style={styles.reviewLabel}>Chain</Text>
+             <Text style={styles.reviewValue}>{formData.chain}</Text>
+          </View>
+          <View style={styles.divider} />
+
           <View style={styles.reviewRow}>
              <Text style={styles.reviewLabel}>File</Text>
              <Text style={styles.reviewValue} numberOfLines={1}>{formData.file?.name}</Text>
           </View>
            <View style={styles.divider} />
           
-          {/* Row 3 */}
           <View style={styles.reviewRow}>
              <Text style={styles.reviewLabel}>Title</Text>
              <Text style={styles.reviewValue}>{formData.name}</Text>
           </View>
            <View style={styles.divider} />
            
-           {/* Row 4 */}
           <View style={styles.reviewRow}>
              <Text style={styles.reviewLabel}>Size</Text>
              <Text style={styles.reviewValue}>2.4 MB</Text> 
-             {/* Placeholder size for now */}
           </View>
            <View style={styles.divider} />
            
-           {/* Row 5 */}
           <View style={styles.reviewRow}>
              <Text style={styles.reviewLabel}>Hash</Text>
              <Text style={styles.reviewValue}>0x7a8b...3f2e</Text>
@@ -279,7 +336,6 @@ export default function CreatePage() {
         <Text style={styles.stepTitle}>Success</Text>
         <Text style={styles.stepSubtitle}>Confirmation</Text>
         
-        {/* Progress Bar (Show complete state) */}
         <View style={styles.successProgress}>
              <Ionicons name="checkmark-circle-outline" size={30} color="#003262" />
              <View style={styles.successLine} />
@@ -317,7 +373,6 @@ export default function CreatePage() {
         
         {currentStep !== STEPS.SUCCESS && (
             <View style={styles.topSection}>
-                {/* Dynamic Sub-headers based on step are inside the render functions now to match design layout */}
                 <ProgressBar currentStep={currentStep} />
             </View>
         )}
@@ -329,18 +384,15 @@ export default function CreatePage() {
             {currentStep === STEPS.SUCCESS && renderSuccess()}
         </View>
 
-        {/* Text-Only Navigation Bar */}
         {currentStep !== STEPS.SUCCESS && (
         <View style={styles.navBar}>
-          
-          {/* CENTER STACKED: Continue on top, Back on bottom */}
           <View style={styles.navStack}>
             <TouchableOpacity 
                 onPress={handleNext}
-                disabled={!isConnected && currentStep === STEPS.REVIEW}
+                disabled={submitting}
             >
                 <Text style={styles.navTextContinue}>
-                    {currentStep === STEPS.REVIEW ? 'Submit' : 'Continue'}
+                    {submitting ? 'Submitting...' : currentStep === STEPS.REVIEW ? 'Submit' : 'Continue'}
                 </Text>
             </TouchableOpacity>
 
@@ -350,7 +402,6 @@ export default function CreatePage() {
                 </TouchableOpacity>
             )}
           </View>
-          
         </View>
         )}
 
@@ -368,14 +419,12 @@ const styles = StyleSheet.create({
   topSection: { alignItems: 'center' },
   mainContentWrapper: { flex: 1, paddingHorizontal: 25 }, 
   
-  // --- Progress Bar ---
   progressContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   stepCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   stepText: { fontWeight: 'bold', fontSize: 16 },
   stepLine: { height: 1, width: 60, backgroundColor: '#003262', marginHorizontal: 5 },
 
-  // --- Step 1: Selection ---
-  stepContent: { flex: 1, alignItems: 'center' }, // Center content horizontally
+  stepContent: { flex: 1, alignItems: 'center' },
   stepTitle: { fontSize: 20, fontWeight: '800', color: '#003262', textAlign: 'center', alignSelf: 'center' },
   stepSubtitle: { fontSize: 14, color: '#003262', marginBottom: 20, textAlign: 'center', alignSelf: 'center' },
   
@@ -383,21 +432,19 @@ const styles = StyleSheet.create({
   selectionBox: { 
     width: '100%', 
     justifyContent: 'center',
-    alignItems: 'flex-start', // Left align text
+    alignItems: 'flex-start',
     borderRadius: 20, 
     borderWidth: 1, 
     paddingHorizontal: 25,
     paddingVertical: 20,
-    height: 110, // Fixed height for consistency
+    height: 110,
   },
-  // Active State: Periwinkle solid color
   selectedBox: { 
     backgroundColor: '#7d8ec4', 
     borderColor: '#003262',
     opacity: 1,
     borderWidth: 1.5,
   },
-  // Inactive State: Translucent Blue
   unselectedBox: { 
     backgroundColor: '#7d8ec4', 
     borderColor: 'transparent', 
@@ -406,23 +453,37 @@ const styles = StyleSheet.create({
   textContainer: { justifyContent: 'center' },
   boxLabel: { fontSize: 24, fontWeight: '800', marginBottom: 5 },
   boxDescription: { fontSize: 13, fontWeight: '500', lineHeight: 18, maxWidth: '90%' },
-  selectedText: { color: '#003262' }, // Dark Blue text for both states to match image
+  selectedText: { color: '#003262' },
   unselectedText: { color: '#003262' },
 
-  // --- Step 2: Upload ---
+  chainContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  chainChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#003262',
+    backgroundColor: 'rgba(125, 142, 196, 0.35)'
+  },
+  chainChipActive: {
+    backgroundColor: '#7d8ec4',
+    borderColor: '#003262'
+  },
+  chainChipText: { color: '#003262', fontWeight: '600' },
+  chainChipTextActive: { color: '#003262' },
+
   scrollContainer: { flex: 1, width: '100%' },
   scrollInner: { paddingBottom: 50, alignItems: 'center' },
   uploadArea: { 
     width: '100%', 
     height: 180, 
-    backgroundColor: 'rgba(255,255,255,0.4)', // Slightly transparent
     borderRadius: 20, 
     borderWidth: 1, 
     borderColor: '#003262', 
     justifyContent: 'center', 
     alignItems: 'center', 
     marginBottom: 25,
-    backgroundColor: '#9faed4' // Match image background color approx
+    backgroundColor: '#9faed4'
   },
   uploadText: { fontSize: 16, fontWeight: 'bold', color: '#003262', marginTop: 10 },
   supportedFormats: { fontSize: 12, color: '#003262', marginTop: 2 },
@@ -443,7 +504,6 @@ const styles = StyleSheet.create({
     color: '#003262'
   },
 
-  // --- Step 3: Review ---
   reviewList: { width: '100%', marginTop: 10 },
   reviewRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
   reviewLabel: { fontSize: 16, color: '#003262', fontWeight: '500' },
@@ -460,7 +520,6 @@ const styles = StyleSheet.create({
   walletLabel: { fontWeight: '700', color: '#003262', fontSize: 16, marginBottom: 5 },
   walletAddress: { fontSize: 12, fontFamily: 'Courier', color: '#003262', opacity: 0.8 },
 
-  // --- Success ---
   successContainer: { flex: 1, alignItems: 'center', paddingBottom: 50 },
   successProgress: { flexDirection: 'row', alignItems: 'center', marginBottom: 30, marginTop: 10 },
   successLine: { width: 40, height: 1, backgroundColor: '#003262', marginHorizontal: 5 },
@@ -468,7 +527,6 @@ const styles = StyleSheet.create({
   successButtonsContainer: { alignItems: 'center', gap: 20 },
   textButton: { color: '#003262', fontSize: 16, fontWeight: '600' },
 
-  // --- Navigation Buttons (Stacked) ---
   navBar: { 
     alignItems: 'center', 
     justifyContent: 'center',

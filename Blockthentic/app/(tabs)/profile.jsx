@@ -1,28 +1,56 @@
-import React from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppKit } from '@reown/appkit-react-native';
-import { useAccount, useDisconnect } from 'wagmi'; // Added useDisconnect
-import { Ionicons } from '@expo/vector-icons';
+import { useAccount, useDisconnect } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabaseClient';
 
 export default function ProfilePage() {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect(); // Hook to disconnect wallet
+  const { disconnect } = useDisconnect();
+  const { user, signOut } = useAuth();
 
-  // --- DYNAMIC DATA PLACEHOLDERS ---
-  // Connect these to your backend/state later
-  const userData = {
-    name: "John Doe",
-    email: "johndoe@gmail.com",
-    memberSince: "January 2026",
-    plan: "Free",
-    contractsCreated: 2,
-  };
+  const [profile, setProfile] = useState(null);
+  const [contractsCount, setContractsCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadProfile() {
+      if (!user || !supabase) return;
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, email, created_at')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const { count } = await supabase
+          .from('registries')
+          .select('*', { count: 'exact', head: true })
+          .eq('owner_id', user.id);
+
+        if (!mounted) return;
+        setProfile(profileData || null);
+        setContractsCount(count || 0);
+      } catch (err) {
+        console.error('Profile load error:', err?.message ?? err);
+      }
+    }
+
+    loadProfile();
+    return () => { mounted = false; };
+  }, [user]);
+
+  const userName = profile?.username || user?.email?.split('@')[0] || 'Member';
+  const userEmail = profile?.email || user?.email || 'Unknown';
+  const memberSince = profile?.created_at
+    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : '—';
 
   return (
     <View style={styles.container}>
-      {/* Background Gradient */}
       <LinearGradient
         colors={['#bdc8feff', '#fef4d3ff']}
         style={styles.background}
@@ -31,15 +59,13 @@ export default function ProfilePage() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.contentContainer}>
           
-          {/* 1. Header & User Info */}
           <Text style={styles.headerTitle}>Profile</Text>
           
           <View style={styles.userInfoSection}>
-            <Text style={styles.userName}>{userData.name}</Text>
-            <Text style={styles.userEmail}>{userData.email}</Text>
+            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userEmail}>{userEmail}</Text>
           </View>
 
-          {/* 2. Wallet Card */}
           <View style={styles.walletCard}>
             <View>
               <Text style={styles.walletTitle}>
@@ -48,7 +74,7 @@ export default function ProfilePage() {
               
               <Text style={styles.walletAddress}>
                 {isConnected 
-                  ? address // Show full address or truncate if preferred
+                  ? address 
                   : "Connect your wallet to manage contracts"
                 }
               </Text>
@@ -63,27 +89,26 @@ export default function ProfilePage() {
             </TouchableOpacity>
           </View>
 
-          {/* 3. Stats Section */}
+          <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+
           <View style={styles.statsContainer}>
-            
-            {/* Stat Row 1 */}
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Member Since</Text>
-              <Text style={styles.statValue}>{userData.memberSince}</Text>
+              <Text style={styles.statValue}>{memberSince}</Text>
             </View>
             <View style={styles.divider} />
 
-            {/* Stat Row 2 */}
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Plan</Text>
-              <Text style={styles.statValue}>{userData.plan}</Text>
+              <Text style={styles.statValue}>Free</Text>
             </View>
             <View style={styles.divider} />
 
-            {/* Stat Row 3 */}
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>Contracts Created</Text>
-              <Text style={styles.statValue}>{userData.contractsCreated}</Text>
+              <Text style={styles.statValue}>{contractsCount}</Text>
             </View>
             <View style={styles.divider} />
 
@@ -106,13 +131,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Header & User Info
   headerTitle: {
     fontSize: 36, color: '#003262', fontWeight: '400', paddingBottom: 30, 
   },
   userInfoSection: {
     width: '100%',
-    alignItems: 'flex-start', // Left align text as per image
+    alignItems: 'flex-start',
     marginBottom: 20,
   },
   userName: {
@@ -127,16 +151,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // Wallet Card Styles
   walletCard: {
     width: '100%',
-    backgroundColor: '#6b7db3', // Dark periwinkle color from image
+    backgroundColor: '#6b7db3',
     borderRadius: 20,
     padding: 20,
-    height: 120, // Fixed height to look like a credit card
+    height: 120,
     justifyContent: 'space-between',
-    marginBottom: 40,
-    // Shadows
+    marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -146,22 +168,32 @@ const styles = StyleSheet.create({
   walletTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(0, 50, 98, 0.8)', // Dark blue with opacity
+    color: 'rgba(0, 50, 98, 0.8)',
     marginBottom: 5,
   },
   walletAddress: {
     fontSize: 12,
     color: 'rgba(0, 50, 98, 0.6)', 
-    fontFamily: 'Courier', // Monospace for address looks techy
+    fontFamily: 'Courier',
   },
   walletActionText: {
     fontSize: 14,
     color: '#003262',
     fontWeight: '600',
-    textDecorationLine: 'underline', // Makes it look like a clickable link
+    textDecorationLine: 'underline',
   },
 
-  // Stats Section Styles
+  signOutButton: {
+    alignSelf: 'flex-end',
+    marginBottom: 30,
+  },
+  signOutText: {
+    color: '#003262',
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+
   statsContainer: {
     width: '100%',
   },
@@ -183,7 +215,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#003262', // Dark blue divider
+    backgroundColor: '#003262',
     opacity: 0.3,
     width: '100%',
   },

@@ -55,7 +55,8 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
     "viem": "^2.44.4",
-    "wagmi": "^3.4.1"
+    "wagmi": "^3.4.1",
+    "@supabase/supabase-js": "^2.49.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

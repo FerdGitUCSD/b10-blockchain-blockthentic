@@ -1,13 +1,10 @@
-import React from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-
-const ACTIVE_CONTRACTS = [
-  { id: '1', title: 'Senescent Cell Trial 2', date: 'January 14th, 2026', type: 'Dataset' },
-  { id: '2', title: 'Senescent Cell Trial 1', date: 'January 7th, 2026', type: 'Dataset' },
-];
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../config/supabaseClient';
 
 const ContractCard = ({ item }) => (
   <View style={styles.card}>
@@ -24,7 +21,55 @@ const ContractCard = ({ item }) => (
 
 export default function HomePage() {
   const router = useRouter();
-  const userName = "John Doe"; 
+  const { user } = useAuth();
+  const [profile, setProfile] = useState(null);
+  const [contracts, setContracts] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadData() {
+      if (!user || !supabase) return;
+      setLoading(true);
+      try {
+        const [{ data: profileData }, { data: registryData }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('username, email, created_at')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('registries')
+            .select('id, name, template_type, created_at')
+            .eq('owner_id', user.id)
+            .order('created_at', { ascending: false })
+        ]);
+
+        if (!mounted) return;
+        setProfile(profileData || null);
+        setContracts(Array.isArray(registryData) ? registryData : []);
+      } catch (err) {
+        console.error('Home data load error:', err?.message ?? err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadData();
+    return () => { mounted = false; };
+  }, [user]);
+
+  const userName = profile?.username || user?.email?.split('@')[0] || 'Member';
+
+  const contractCards = useMemo(() => (
+    contracts.map((contract) => ({
+      id: contract.id,
+      title: contract.name,
+      date: contract.created_at ? new Date(contract.created_at).toLocaleDateString() : 'Unknown',
+      type: contract.template_type
+    }))
+  ), [contracts]);
 
   return (
     <View style={styles.container}>
@@ -34,7 +79,6 @@ export default function HomePage() {
       />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Added a wrapper View for consistent horizontal margins */}
         <View style={styles.contentWrapper}>
             
             <View style={styles.header}>
@@ -52,9 +96,15 @@ export default function HomePage() {
                 contentContainerStyle={styles.scrollContent} 
                 showsVerticalScrollIndicator={false}
             >
-              {ACTIVE_CONTRACTS.map((contract) => (
-                <ContractCard key={contract.id} item={contract} />
-              ))}
+              {contractCards.length > 0 ? (
+                contractCards.map((contract) => (
+                  <ContractCard key={contract.id} item={contract} />
+                ))
+              ) : (
+                <Text style={styles.emptyText}>
+                  {loading ? 'Loading contracts...' : 'No contracts yet. Create your first one!'}
+                </Text>
+              )}
 
               <TouchableOpacity 
                 style={styles.addContractRow}
@@ -93,6 +143,7 @@ const styles = StyleSheet.create({
   viewAllText: { fontSize: 14, color: '#003262', fontWeight: '500' },
 
   scrollContent: { paddingBottom: 120 }, 
+  emptyText: { color: '#003262', fontSize: 14, textAlign: 'center', marginBottom: 20 },
   card: {
     backgroundColor: '#7d8ec4', 
     borderRadius: 25,
