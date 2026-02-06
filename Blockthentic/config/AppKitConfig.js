@@ -1,7 +1,7 @@
 import "@walletconnect/react-native-compat";
 import { createAppKit } from "@reown/appkit-react-native";
 import { WagmiAdapter } from "@reown/appkit-wagmi-react-native";
-import { mainnet, sepolia } from "@wagmi/core/chains"; 
+import { mainnet, sepolia } from '@reown/appkit/networks'; 
 import { storage } from "./StorageUtil";
 
 // 1. Project ID from Reown Cloud
