@@ -22,9 +22,8 @@ export default function Layout() {
               <Stack.Screen name="(tabs)" />
             </Stack>
 
-            <View style={{ position: "absolute", height: "100%", width: "100%", pointerEvents: "box-none" }}>
-              <AppKit />
-            </View>
+            <AppKit />
+            
           </AuthProvider>
         </AppKitProvider>
       </QueryClientProvider>

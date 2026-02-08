@@ -110,10 +110,12 @@ export default function Home() {
     <View style={styles.container}>
       
       {/* 1. Main Background Gradient */}
-      <LinearGradient
-        colors={['#bdc8feff', '#fef4d3ff']}
-        style={styles.background}
-      />
+      <View style={styles.backgroundWrapper}>  
+        <LinearGradient
+          colors={['#bdc8feff', '#fef4d3ff']}
+          style={styles.background}
+        />
+      </View>
 
       {/* 2. Main Landing Content */}
       <Animated.View 
@@ -218,6 +220,7 @@ const styles = StyleSheet.create({
   // --- Main Screen Styles ---
   container: {
     flex: 1,
+    position: 'relative',
   },
   background: {
     position: 'absolute',
@@ -225,12 +228,25 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     height: '100%',
+    zIndex: -1,
+    pointerEvents: 'none',
+  },
+  backgroundWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,             // Push to back
+    pointerEvents: 'none',
   },
   mainContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    zIndex: 2,
+    position: 'relative'
   },
   headerSection: {
     marginBottom: 40,
