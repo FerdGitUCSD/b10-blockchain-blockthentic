@@ -43,6 +43,7 @@ export default function AuthScreen() {
           <TextInput
             style={styles.input}
             placeholder="Username"
+            placeholderTextColor="#666"
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -52,6 +53,7 @@ export default function AuthScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor="#666"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -60,6 +62,7 @@ export default function AuthScreen() {
         <TextInput
           style={styles.input}
           placeholder="Password"
+          placeholderTextColor="#666"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -77,8 +80,8 @@ export default function AuthScreen() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>Back</Text>
+        <TouchableOpacity onPress={() => router.replace('/')}> 
+          <Text style={styles.backText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -89,7 +92,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   card: {
-    width: '85%',
+    width: '90%',
+    maxWidth: 400,
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     padding: 24,
     borderRadius: 20,
@@ -98,6 +102,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 26, fontWeight: '700', color: '#003262', marginBottom: 18 },
   input: {
+    
     borderWidth: 1,
     borderColor: '#003262',
     borderRadius: 12,
@@ -105,6 +110,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
     backgroundColor: '#fff',
+    color: '#003262',
   },
   primaryButton: {
     backgroundColor: '#6b88c8',

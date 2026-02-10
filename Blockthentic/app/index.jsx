@@ -7,11 +7,11 @@ import {
   TouchableOpacity, 
   Modal, 
   Animated, 
-  LayoutAnimation, 
   Platform, 
   UIManager,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  Easing
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,25 +21,36 @@ import { useAppKit } from '@reown/appkit-react-native';
 import { useAccount } from 'wagmi';
 import { useAuth } from '../context/AuthContext';
 
-// Enable LayoutAnimation for Android
+// LayoutAnimation for Android (Keep this for other parts of the app if needed)
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// --- COMPONENT: Accordion Dropdown ---
+// --- Web-Compatible Accordion ---
 const AccordionItem = ({ title, content }) => {
   const [expanded, setExpanded] = useState(false);
+  const animationController = useRef(new Animated.Value(0)).current;
 
   const toggleExpand = () => {
-    LayoutAnimation.configureNext({
-      duration: 200,
-      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-      delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-    });
+    Animated.timing(animationController, {
+      toValue: expanded ? 0 : 1,
+      duration: 300,
+      easing: Easing.bezier(0.4, 0.0, 0.2, 1), 
+      useNativeDriver: false, 
+    }).start();
     
     setExpanded(!expanded);
   };
+
+  const contentOpacity = animationController.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const contentMaxHeight = animationController.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 500], 
+  });
 
   return (
     <View style={styles.accordionContainer}>
@@ -56,11 +67,14 @@ const AccordionItem = ({ title, content }) => {
           style={{ fontWeight: 'bold' }} 
         />
       </TouchableOpacity>
-      {expanded && (
+      
+      {/* Animated Content Wrapper */}
+      <Animated.View style={{ opacity: contentOpacity, maxHeight: contentMaxHeight, overflow: 'hidden' }}>
         <View style={styles.accordionContent}>
           <Text style={styles.accordionText}>{content}</Text>
         </View>
-      )}
+      </Animated.View>
+      
       {/* Divider Line */}
       <View style={styles.divider} />
     </View>
@@ -86,7 +100,7 @@ export default function Home() {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: true, 
     }).start();
   };
 
@@ -109,7 +123,6 @@ export default function Home() {
   return (
     <View style={styles.container}>
       
-      {/* 1. Main Background Gradient */}
       <View style={styles.backgroundWrapper}>  
         <LinearGradient
           colors={['#bdc8feff', '#fef4d3ff']}
@@ -117,7 +130,6 @@ export default function Home() {
         />
       </View>
 
-      {/* 2. Main Landing Content */}
       <Animated.View 
         style={[styles.mainContent, { opacity: mainContentOpacity }]}
       >
@@ -126,7 +138,6 @@ export default function Home() {
           <Text style={styles.brandText}>Vera</Text>
         </View>
 
-        {/* Wallet Status Display */}
         {isConnected && (
           <View style={styles.walletStatus}>
             <Text style={styles.connectedText}>
@@ -161,7 +172,6 @@ export default function Home() {
         </View>
       </Animated.View>
 
-      {/* 3. Learn More Overlay (Modal) */}
       <Modal
         animationType="none"
         transparent={true}
@@ -174,15 +184,13 @@ export default function Home() {
           <BlurView intensity={20} tint="light" style={styles.absoluteFill}>
             
             <View style={styles.modalContainer}>
-              
-              {/* Modal Content Background (Gradient) */}
               <LinearGradient
                 colors={['#bdc8feff', '#fef4d3ff']}
                 style={styles.modalContent}
               >
                 <SafeAreaView style={{flex: 1}}>
                     <ScrollView 
-                      contentContainerStyle={styles.scrollContent}
+                      contentContainerStyle={styles.scrollContent} 
                       showsVerticalScrollIndicator={false}
                     >
                       <AccordionItem 
@@ -199,8 +207,6 @@ export default function Home() {
                       />
                     </ScrollView>
 
-
-                  {/* Bottom Back Button */}
                   <TouchableOpacity onPress={closeLearnMore} style={styles.bottomBackButton}>
                     <Text style={styles.bottomBackText}>Back</Text>
                   </TouchableOpacity>
@@ -217,7 +223,6 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  // --- Main Screen Styles ---
   container: {
     flex: 1,
     position: 'relative',
@@ -237,7 +242,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: -1,             // Push to back
+    zIndex: -1,
     pointerEvents: 'none',
   },
   mainContent: {
@@ -277,15 +282,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  
+  // --- BUTTONS ---
   buttonContainer: {
     width: '100%',
+    maxWidth: 320,
     alignItems: 'center',
     gap: 15,
   },
   primaryButton: {
     backgroundColor: '#6b88c8',
     paddingVertical: 16,
-    width: '60%',
+    width: '100%',
     borderRadius: 50,
     alignItems: 'center',
     shadowColor: '#6b88c8',
@@ -302,7 +310,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#6b88c8',
     paddingVertical: 16,
-    width: '60%',
+    width: '100%',
     borderRadius: 50,
     alignItems: 'center',
     shadowColor: '#000',
@@ -317,7 +325,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
 
-  // --- Modal / Overlay Styles ---
+  // --- MODAL ---
   absoluteFill: {
     position: 'absolute',
     top: 0,
@@ -334,14 +342,17 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
   },
+  
+  // --- ACCORDION  ---
   scrollContent: {
     paddingHorizontal: 25,
     flexGrow: 1, 
     justifyContent: 'center',
-    fontWeight: '500',
+    width: '100%',     
+    maxWidth: 800,      
+    alignSelf: 'center' 
   },
   
-  // --- Accordion Styles ---
   accordionContainer: {
     marginBottom: 15,
     marginLeft: 10,
@@ -371,8 +382,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#003262',
     marginTop: 5,
   },
-  
-  // --- Bottom Back Button ---
   bottomBackButton: {
     alignSelf: 'center',
     marginBottom: 50,

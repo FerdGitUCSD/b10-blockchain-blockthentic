@@ -1,20 +1,18 @@
 // app/(tabs)/verify.jsx
 import { sepolia } from 'viem/chains';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system'; // Use standard import
 import * as Crypto from 'expo-crypto';
 import { useRouter } from 'expo-router';
 import { useReadContract } from 'wagmi';
 
 // --- CONFIGURATION ---
-// REPLACE THIS with your deployed contract address
 const CONTRACT_ADDRESS = '0x459E40D36aAD635963fa2c65b3610C9360FA065b'; 
 
-// The ABI from your DocumentRegistry.sol (Minimal version for verification)
 const CONTRACT_ABI = [
   {
     "inputs": [
@@ -28,7 +26,6 @@ const CONTRACT_ABI = [
   }
 ];
 
-// --- CONSTANTS ---
 const STEPS = {
   SELECT_TYPE: 1,
   UPLOAD: 2,
@@ -59,15 +56,13 @@ const VERIFY_TYPES = {
 export default function VerifyPage() {
   const router = useRouter();
   
-  // State
   const [currentStep, setCurrentStep] = useState(STEPS.SELECT_TYPE);
   const [selectedType, setSelectedType] = useState(null);
   const [file, setFile] = useState(null);
   const [fileHash, setFileHash] = useState(null);
   const [isHashing, setIsHashing] = useState(false);
 
-  // --- WAGMI CONTRACT READ ---
-  // This hook automatically calls the blockchain when 'fileHash' is set
+  // --- WAGMI HOOK ---
   const { 
     data: isVerified, 
     isError, 
@@ -79,11 +74,27 @@ export default function VerifyPage() {
     abi: CONTRACT_ABI,
     functionName: 'verifyDocument',
     args: fileHash ? [fileHash, fileHash] : undefined,
-    chainId: 11155111, // <--- CRITICAL: Forces the hook to use Sepolia
+    chainId: 11155111,
     query: {
-      enabled: false, 
+      enabled: false, // We fire this manually
     }
   });
+
+  // --- EFFECT: Trigger Blockchain Read ---
+  // This waits until 'fileHash' is actually set before running the contract check
+  useEffect(() => {
+    if (fileHash) {
+      console.log("Hash set, checking contract...", fileHash);
+      refetch()
+        .then(() => {
+          setCurrentStep(STEPS.RESULT);
+        })
+        .catch((err) => {
+          console.error("Contract Read Error:", err);
+          Alert.alert("Error", "Failed to check blockchain.");
+        });
+    }
+  }, [fileHash]); // Only runs when fileHash changes
 
   // --- ACTIONS ---
 
@@ -103,32 +114,61 @@ export default function VerifyPage() {
 
       if (result.assets && result.assets.length > 0) {
         setFile(result.assets[0]);
-        setFileHash(null); // Reset hash when new file picked
+        setFileHash(null); 
       }
     } catch (err) {
       console.log("Error picking document:", err);
     }
   };
 
-  const calculateHash = async (fileUri) => {
+  const calculateHash = async (fileUri, fileObject) => { // Note: pass the full file object from picker
     try {
       setIsHashing(true);
-      
-      // FIX 1: Use 'base64' string directly instead of FileSystem.EncodingType.Base64
-      const fileContent = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: 'base64', 
-      });
-      
-      // FIX 2: Use 'SHA-256' string directly instead of Crypto.CryptoDigestAlgorithm.SHA256
+      let fileContent;
+
+      // --- LOGIC FOR WEB ---
+      if (Platform.OS === 'web') {
+        let blob;
+        // Robustness: Try to use the File object directly if Expo provided it
+        if (fileObject && fileObject.file) {
+            blob = fileObject.file;
+        } else {
+            // Fallback: Fetch the blob from the URL
+            const response = await fetch(fileUri);
+            blob = await response.blob();
+        }
+        
+        // Convert Blob to Base64 manually
+        fileContent = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result;
+            // Remove the "data:application/pdf;base64," prefix
+            // This regex handles various mime types safely
+            const rawBase64 = base64data.replace(/^data:.+;base64,/, '');
+            resolve(rawBase64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } 
+      // --- LOGIC FOR MOBILE (iOS/Android) ---
+      else {
+         fileContent = await FileSystem.readAsStringAsync(fileUri, {
+          encoding: 'base64', 
+        });
+      }
+
+      // Hash the result (Crypto works on both web and mobile!)
       const hash = await Crypto.digestStringAsync(
         'SHA-256',
         fileContent
       );
-      
-      // Return formatted hash
+
       return `0x${hash}`;
+
     } catch (error) {
-      console.log("Hash Error:", error); // Log the actual error to console for debugging
+      console.error("Hashing Error:", error);
       Alert.alert("Error", "Could not process file.");
       return null;
     } finally {
@@ -139,18 +179,12 @@ export default function VerifyPage() {
   const handleVerify = async () => {
     if (!file) return;
 
-    // 1. Calculate Hash locally
-    const hash = await calculateHash(file.uri);
+    // Pass the entire file object so Web logic can access the File blob
+    const hash = await calculateHash(file.uri, file);
     
     if (hash) {
+      // Just set the hash. The useEffect above handles the rest.
       setFileHash(hash);
-      // 2. Trigger the blockchain read
-      // We use a small timeout to ensure state updates before refetching
-      setTimeout(() => {
-        refetch().then(() => {
-           setCurrentStep(STEPS.RESULT);
-        });
-      }, 100);
     }
   };
 
@@ -162,35 +196,25 @@ export default function VerifyPage() {
   };
 
   // --- RENDER FUNCTIONS ---
+  // (Rendering logic is identical to before, just cleaner structure)
 
   const renderStep1Selection = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Verify</Text>
       <Text style={styles.stepSubtitle}>Select what you want to verify</Text>
-
       <View style={styles.selectionContainer}>
         {Object.values(VERIFY_TYPES).map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={[
-              styles.selectionBox,
-              !item.active && styles.disabledBox
-            ]}
+            style={[styles.selectionBox, !item.active && styles.disabledBox]}
             onPress={() => handleTypeSelect(item.id)}
             disabled={!item.active}
           >
             <View style={styles.textContainer}>
-              <Text style={[styles.boxLabel, !item.active && styles.disabledText]}>
-                {item.label}
-              </Text>
-              <Text style={[styles.boxDescription, !item.active && styles.disabledText]}>
-                {item.description}
-              </Text>
+              <Text style={[styles.boxLabel, !item.active && styles.disabledText]}>{item.label}</Text>
+              <Text style={[styles.boxDescription, !item.active && styles.disabledText]}>{item.description}</Text>
             </View>
-            
-            {item.active && (
-              <Ionicons name="arrow-forward" size={24} color="#003262" />
-            )}
+            {item.active && <Ionicons name="arrow-forward" size={24} color="#003262" />}
           </TouchableOpacity>
         ))}
       </View>
@@ -202,7 +226,6 @@ export default function VerifyPage() {
        <Text style={styles.stepTitle}>Upload Document</Text>
        <Text style={styles.stepSubtitle}>We will hash this file to verify it against the blockchain.</Text>
        
-       {/* Upload Area */}
        <TouchableOpacity style={styles.uploadArea} onPress={pickDocument}>
           {file ? (
              <View style={styles.fileInfo}>
@@ -219,7 +242,6 @@ export default function VerifyPage() {
           )}
        </TouchableOpacity>
 
-       {/* Verify Button */}
        <TouchableOpacity 
           style={[styles.primaryButton, (!file || isHashing || isContractLoading) && styles.disabledButton]} 
           onPress={handleVerify}
@@ -235,38 +257,29 @@ export default function VerifyPage() {
        <TouchableOpacity onPress={() => setCurrentStep(STEPS.SELECT_TYPE)} style={styles.cancelButton}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
        </TouchableOpacity>
-
     </ScrollView>
   );
 
   const renderStep3Result = () => {
-    // Determine status based on contract result
-    // isVerified is the boolean returned from the smart contract
     const success = isVerified === true;
-
     return (
       <View style={styles.resultContainer}>
           {success ? (
             <>
               <Ionicons name="shield-checkmark" size={100} color="#4A90E2" />
               <Text style={styles.resultTitle}>Verified!</Text>
-              <Text style={styles.resultSubtitle}>
-                This document matches the record on the blockchain. It is authentic.
-              </Text>
+              <Text style={styles.resultSubtitle}>This document matches the record on the blockchain. It is authentic.</Text>
             </>
           ) : (
             <>
               <Ionicons name="alert-circle" size={100} color="#D32F2F" />
               <Text style={[styles.resultTitle, { color: '#D32F2F' }]}>Verification Failed</Text>
               <Text style={styles.resultSubtitle}>
-                {isError 
-                  ? "Error connecting to blockchain." 
-                  : "This document does NOT match any record on the blockchain."}
+                {isError ? "Error connecting to blockchain." : "This document does NOT match any record on the blockchain."}
               </Text>
             </>
           )}
           
-          {/* Hash Display */}
           <View style={styles.hashBox}>
             <Text style={styles.hashLabel}>Document Hash:</Text>
             <Text style={styles.hashValue}>
@@ -287,10 +300,7 @@ export default function VerifyPage() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#bdc8feff', '#fef4d3ff']}
-        style={styles.background}
-      />
+      <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.mainContentWrapper}>
             {currentStep === STEPS.SELECT_TYPE && renderStep1Selection()}
@@ -306,75 +316,48 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1, paddingTop: 10 },
-  mainContentWrapper: { flex: 1, paddingHorizontal: 25, paddingTop: 20 },
-
-  // --- Step 1 Styles ---
+  mainContentWrapper: { 
+    flex: 1, 
+    paddingHorizontal: 25, 
+    paddingTop: 20,
+    width: '100%',
+    maxWidth: 800,
+    alignSelf: 'center'
+  },
   stepContent: { flex: 1, alignItems: 'center' },
   stepTitle: { fontSize: 26, fontWeight: '700', color: '#003262', marginBottom: 5 },
   stepSubtitle: { fontSize: 16, color: '#555', marginBottom: 30 },
-  
   selectionContainer: { gap: 15, width: '100%' },
   selectionBox: { 
-    width: '100%', 
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 20, 
-    borderWidth: 1.5, 
-    borderColor: '#003262',
-    backgroundColor: '#7d8ec4',
-    paddingHorizontal: 25,
-    paddingVertical: 20,
-    height: 100,
+    width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#003262', backgroundColor: '#7d8ec4',
+    paddingHorizontal: 25, paddingVertical: 20, height: 100,
   },
-  disabledBox: {
-    backgroundColor: 'rgba(125, 142, 196, 0.3)', 
-    borderColor: 'transparent',
-    opacity: 0.7,
-  },
+  disabledBox: { backgroundColor: 'rgba(125, 142, 196, 0.3)', borderColor: 'transparent', opacity: 0.7 },
   textContainer: { justifyContent: 'center' },
   boxLabel: { fontSize: 22, fontWeight: '700', color: '#003262', marginBottom: 5 },
   boxDescription: { fontSize: 13, fontWeight: '500', color: '#003262' },
   disabledText: { color: 'rgba(0, 50, 98, 0.5)' },
-
-  // --- Step 2 Upload Styles ---
   scrollContainer: { flex: 1, width: '100%' },
   scrollInner: { alignItems: 'center', paddingBottom: 100 },
   uploadArea: { 
-    width: '100%', 
-    height: 200, 
-    backgroundColor: '#9faed4',
-    borderRadius: 20, 
-    borderWidth: 1, 
-    borderColor: '#003262', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginBottom: 40,
-    marginTop: 20,
+    width: '100%', height: 200, backgroundColor: '#9faed4', borderRadius: 20, borderWidth: 1, borderColor: '#003262', 
+    justifyContent: 'center', alignItems: 'center', marginBottom: 40, marginTop: 20,
   },
   uploadText: { fontSize: 18, fontWeight: 'bold', color: '#003262', marginTop: 10 },
   supportedFormats: { fontSize: 12, color: '#003262', marginTop: 5 },
   fileInfo: { alignItems: 'center' },
   fileName: { fontSize: 16, color: '#003262', fontWeight: '600', marginTop: 10 },
   changeFileText: { color: '#003262', marginTop: 5, textDecorationLine: 'underline' },
-
-  // --- Result Styles ---
   resultContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 50 },
   resultTitle: { fontSize: 28, fontWeight: 'bold', color: '#003262', marginTop: 20, marginBottom: 10 },
   resultSubtitle: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 30, lineHeight: 22 },
   hashBox: { backgroundColor: 'rgba(255,255,255,0.5)', padding: 15, borderRadius: 10, marginBottom: 40, width: '100%', alignItems: 'center' },
   hashLabel: { fontSize: 12, color: '#555', marginBottom: 4 },
   hashValue: { fontSize: 14, fontFamily: 'Courier', fontWeight: '600', color: '#003262' },
-
-  // --- Buttons ---
   primaryButton: { 
-    backgroundColor: '#003262', 
-    paddingVertical: 16, 
-    width: '100%',
-    borderRadius: 50, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    marginBottom: 15,
+    backgroundColor: '#003262', paddingVertical: 16, width: '100%', borderRadius: 50, 
+    alignItems: 'center', justifyContent: 'center', marginBottom: 15,
   },
   disabledButton: { backgroundColor: '#888' },
   primaryButtonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
