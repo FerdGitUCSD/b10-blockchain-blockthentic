@@ -4,6 +4,7 @@ async function main() {
   // Get deployer account
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
+  console.log("Network:", hre.network.name);
   console.log("Account balance:", (await hre.ethers.provider.getBalance(deployer.address)).toString());
 
   // Configuration - UPDATE THESE FOR YOUR DEPLOYMENT
@@ -35,6 +36,7 @@ async function main() {
 
   // Summary
   console.log("\n--- Deployment Complete ---\n");
+  console.log("Network:                       ", hre.network.name);
   console.log("Contract Addresses:");
   console.log("  RevocationRegistry:         ", revocationAddress);
   console.log("  ImageVerificationRegistry:  ", verificationAddress);
@@ -48,13 +50,18 @@ async function main() {
   console.log(`  verificationRegistry: "${verificationAddress}",`);
   console.log(`};`);
 
-  // Verify on Etherscan (if not localhost)
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.log("\n--- Verifying Contracts on Etherscan ---\n");
+  // Determine the correct block explorer name
+  const isPolygon = ["polygon", "amoy"].includes(hre.network.name);
+  const explorerName = isPolygon ? "Polygonscan" : "Etherscan";
 
-    // Wait for Etherscan to index the contracts
-    console.log("Waiting 30 seconds for Etherscan to index...");
-    await new Promise(resolve => setTimeout(resolve, 30000));
+  // Verify on block explorer (if not localhost)
+  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+    console.log(`\n--- Verifying Contracts on ${explorerName} ---\n`);
+
+    // Wait for block explorer to index the contracts
+    const waitTime = isPolygon ? 15 : 30; // Polygon indexes faster
+    console.log(`Waiting ${waitTime} seconds for ${explorerName} to index...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
 
     try {
       console.log("Verifying RevocationRegistry...");
