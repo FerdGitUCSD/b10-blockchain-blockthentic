@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppKit } from '@reown/appkit-react-native';
+import { useAppKit } from '../../config/AppKitConfig';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../config/supabaseClient';

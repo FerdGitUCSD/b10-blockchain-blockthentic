@@ -38,3 +38,5 @@ export const appKit = createAppKit({
   storage,
   enableAnalytics: false,
 });
+
+export { useAppKit } from '@reown/appkit-react-native';
