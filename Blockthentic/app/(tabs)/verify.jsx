@@ -350,6 +350,7 @@ export default function VerifyPage() {
   const [pendingTxHash, setPendingTxHash] = useState(null);
   const [registries, setRegistries] = useState([]);
   const [selectedRegistryId, setSelectedRegistryId] = useState(null);
+  const [result, setResult] = useState(null);
   const [selectedRevokeReason, setSelectedRevokeReason] = useState(1);
 
   useEffect(() => {
