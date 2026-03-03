@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -855,7 +856,7 @@ export default function VerifyPage() {
     }
   };
 
-    const handleRevoke = async () => {
+  const handleRevoke = async () => {
     if (!selectedRegistry?.contract_address) {
       Alert.alert('Missing registry', 'Select a deployed registry.');
       return;
@@ -880,7 +881,6 @@ export default function VerifyPage() {
       const hash = await getVerifyHash();
       setFileHash(hash);
 
-
       const verified = await publicClient.readContract({
         address: selectedRegistry.contract_address,
         abi: VERIFY_ABI[selectedType],
@@ -897,7 +897,6 @@ export default function VerifyPage() {
         });
         return;
       }
-
 
       try {
         const alreadyRevoked = await publicClient.readContract({
@@ -945,6 +944,8 @@ export default function VerifyPage() {
       setPendingTxHash(null);
       setBusy(false);
     }
+  };
+
   const inviteMember = async () => {
     setInviteMessage({ type: '', text: '' });
 
@@ -1051,6 +1052,7 @@ export default function VerifyPage() {
             </TouchableOpacity>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.REVOKE && styles.modeChipActive]} onPress={() => { setMode(MODE.REVOKE); setResult(null); }}>
               <Text style={styles.modeText}>Revoke</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.PERMISSIONS && styles.modeChipActive]} onPress={() => { setMode(MODE.PERMISSIONS); setResult(null); }}>
               <Text style={styles.modeText}>Permissions</Text>
             </TouchableOpacity>
@@ -1073,46 +1075,6 @@ export default function VerifyPage() {
 
           {renderRegistryPicker()}
 
-          <View style={styles.block}>
-            <Text style={styles.label}>Input</Text>
-            <TouchableOpacity style={styles.fileBtn} onPress={pickDocument}>
-              <Ionicons name="document-outline" size={18} color="#003262" />
-              <Text style={styles.fileBtnText}>{file ? `File: ${file.name}` : 'Pick file'}</Text>
-            </TouchableOpacity>
-            {mode === MODE.VERIFY && (
-              <TextInput
-                style={styles.input}
-                value={manualHash}
-                onChangeText={setManualHash}
-                placeholder="or paste 0x... hash"
-                placeholderTextColor="#666"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            )}
-            {mode === MODE.REVOKE && (
-              <>
-                <Text style={[styles.registryMeta, { marginTop: 6 }]}>Revocation Reason</Text>
-                <View style={styles.typeRow}>
-                  {REVOCATION_REASONS.filter((r) => r.id !== 0).map((reason) => (
-                    <TouchableOpacity
-                      key={reason.id}
-                      style={[styles.typeChip, selectedRevokeReason === reason.id && styles.typeChipActive]}
-                      onPress={() => setSelectedRevokeReason(reason.id)}
-                    >
-                      <Text style={styles.typeText}>{reason.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {!hasRevocationRegistry(selectedRegistry) && selectedRegistry && (
-                  <Text style={[styles.permissionText, { color: '#b71c1c', marginTop: 6 }]}>
-                    This registry does not have a revocation contract. Only new registries support revocation.
-                  </Text>
-                )}
-              </>
-            )}
-            {mode === MODE.REGISTER && (
-              <>
           {mode !== MODE.PERMISSIONS && (
             <View style={styles.block}>
               <Text style={styles.label}>Input</Text>
@@ -1120,6 +1082,7 @@ export default function VerifyPage() {
                 <Ionicons name="document-outline" size={18} color="#003262" />
                 <Text style={styles.fileBtnText}>{file ? `File: ${file.name}` : 'Pick file'}</Text>
               </TouchableOpacity>
+              
               {mode === MODE.VERIFY && (
                 <TextInput
                   style={styles.input}
@@ -1131,6 +1094,29 @@ export default function VerifyPage() {
                   autoCorrect={false}
                 />
               )}
+
+              {mode === MODE.REVOKE && (
+                <>
+                  <Text style={[styles.registryMeta, { marginTop: 6, marginBottom: 8 }]}>Revocation Reason</Text>
+                  <View style={styles.typeRow}>
+                    {REVOCATION_REASONS.filter((r) => r.id !== 0).map((reason) => (
+                      <TouchableOpacity
+                        key={reason.id}
+                        style={[styles.typeChip, selectedRevokeReason === reason.id && styles.typeChipActive]}
+                        onPress={() => setSelectedRevokeReason(reason.id)}
+                      >
+                        <Text style={styles.typeText}>{reason.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {!hasRevocationRegistry(selectedRegistry) && selectedRegistry && (
+                    <Text style={[styles.permissionText, { color: '#b71c1c', marginTop: 6 }]}>
+                      This registry does not have a revocation contract. Only new registries support revocation.
+                    </Text>
+                  )}
+                </>
+              )}
+
               {mode === MODE.REGISTER && (
                 <>
                   <TextInput
@@ -1205,23 +1191,37 @@ export default function VerifyPage() {
           )}
 
           {mode !== MODE.PERMISSIONS && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, busy && styles.disabledBtn]}
-              disabled={busy || !selectedRegistryId}
-              onPress={mode === MODE.REGISTER ? handleRegister : handleVerify}
-            >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{mode === MODE.REGISTER ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain') : 'Verify Hash'}</Text>}
-            </TouchableOpacity>
-          )}
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.primaryBtn, 
+                  mode === MODE.REVOKE && styles.revokeBtn,
+                  (busy || (mode === MODE.REVOKE && selectedRegistry && !hasRevocationRegistry(selectedRegistry))) && styles.disabledBtn
+                ]}
+                disabled={busy || !selectedRegistryId || (mode === MODE.REVOKE && selectedRegistry && !hasRevocationRegistry(selectedRegistry))}
+                onPress={mode === MODE.REGISTER ? handleRegister : mode === MODE.REVOKE ? handleRevoke : handleVerify}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryText}>
+                    {mode === MODE.REGISTER
+                      ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain')
+                      : mode === MODE.REVOKE
+                        ? (pendingTxHash ? 'Waiting for confirmation...' : 'Revoke Asset')
+                        : 'Verify Hash'}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-          {mode === MODE.REGISTER && selectedRegistry && !selectedRegistry.can_register ? (
-            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can register.</Text>
-          ) : null}
+              {(mode === MODE.REGISTER || mode === MODE.REVOKE) && selectedRegistry && !selectedRegistry.can_register ? (
+                <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can {mode === MODE.REVOKE ? 'revoke' : 'register'}.</Text>
+              ) : null}
 
-          {mode !== MODE.PERMISSIONS && (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
-              <Text style={styles.secondaryText}>Clear</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
+                <Text style={styles.secondaryText}>Clear</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {mode === MODE.PERMISSIONS && selectedRegistry && selectedRegistry.user_role === 'owner' && (
@@ -1238,28 +1238,7 @@ export default function VerifyPage() {
                   placeholder="username"
                   placeholderTextColor="#666"
                 />
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, busy && styles.disabledBtn, mode === MODE.REVOKE && styles.revokeBtn]}
-            disabled={busy || !selectedRegistryId}
-            onPress={mode === MODE.REGISTER ? handleRegister : mode === MODE.REVOKE ? handleRevoke : handleVerify}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryText}>
-                {mode === MODE.REGISTER
-                  ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain')
-                  : mode === MODE.REVOKE
-                    ? (pendingTxHash ? 'Waiting for confirmation...' : 'Revoke Asset')
-                    : 'Verify Hash'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {(mode === MODE.REGISTER || mode === MODE.REVOKE) && selectedRegistry && !selectedRegistry.can_register ? (
-            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can {mode === MODE.REVOKE ? 'revoke' : 'register'}.</Text>
-          ) : null}
+                
                 <Text style={styles.label}>Role</Text>
                 <View style={styles.typeRow}>
                   {MEMBER_ROLES.map((role) => (
