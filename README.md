@@ -8,8 +8,8 @@ A multi-registry blockchain verification platform where authorized issuers ancho
 
 This repository contains:
 
-- **Hardhat workspace** (`contracts/`, `scripts/`, `test/`) for Solidity smart contracts  
-- **Production dApp** in `frontend/` (deployable via GitHub Pages)  
+- **Hardhat workspace** (`Blockthentic/onchain/`) for Solidity smart contracts  
+- **Production dApp** in `Blockthentic/app` (deployable via deploy script)  
 - **Optional backend/database configuration** for off-chain metadata storage  
 - **Architecture diagrams and report assets** in `figures/`  
 - **Legacy or experimental components** preserved for reference  
@@ -20,11 +20,11 @@ This repository contains:
 
 ### Multi-Registry Architecture
 
-Separate smart contracts for documents, datasets, and media assets. Each registry enforces issuer authorization and lifecycle management.
+A registry factory deploys tightly coupled smart contract pairs for documents, datasets, and media assets based on user choice. These contracts can be deployed to Ethereum, Polygon, or Arbitrum. Each registry pair enforces revocation and registration.
 
 ### On-Chain Anchoring
 
-Files are hashed locally using Web Crypto SHA-256. Only the hash and minimal metadata are stored on Ethereum (Sepolia). No raw files are written to the blockchain.
+Files are hashed locally using SHA-256. Only the hash and minimal metadata are stored on the blockchain. No raw files are written to the blockchain.
 
 ### Off-Chain Storage
 
@@ -32,8 +32,8 @@ Files remain in external storage (e.g., Supabase or equivalent). Metadata such a
 
 ### Role-Based Workflows
 
-Admins authorize issuers.  
-Issuers register assets.  
+Owners authorize Admins.  
+Owners and Admins register and revoke assets.  
 Verifiers perform read-only validation without requiring gas fees.
 
 ### Revocation Support
@@ -48,14 +48,16 @@ Users can upload a file or paste a hash. The client recomputes SHA-256 and check
 
 ## Smart Contracts
 
-Located in `contracts/`.
+Located in `Blockthentic/contracts/onchain/contracts`.
 
 Core contracts include:
 
-- `DocumentVerification.sol`
-- `DatasetVerification.sol`
-- `MediaVerification.sol`
-- `Revocation.sol` (if separate)
+- `DocumentRegistryTemplate.sol`
+- `DatasetRegistryTemplate.sol`
+- `MediaRegistryTemplate.sol`
+- `RevocationRegistry.sol`
+- `IRevocationRegistry.sol`
+- `RegistryFactory.sol`
 
 ### Core Entry Points
 
@@ -128,12 +130,13 @@ frontend/js/config.js
 
 Primary pages:
 
-- `index.html` – Landing page  
-- `create.html` – Asset registration (issuer-only)  
-- `verify.html` – Public verification page  
-- `login.html` – Role-based authentication  
+- `index.jsx` 
+- `create.jsx` 
+- `verify.jsx` 
+- `profile.jsx` 
+- `home.jsx`
 
-Client-side hashing is performed using the Web Crypto API before any blockchain interaction.
+Client-side hashing is performed using the expo-crypto library (Crypto.digestStringAsync) with SHA-256. The file is read as a base64-encoded string, which is then hashed to produce a 0x-prefixed 32-byte hex digest used as the on-chain identifier.
 
 ### Local Testing
 
@@ -205,11 +208,11 @@ Push to `main` to trigger automatic deployment.
 
 ## Summary
 
-1. Deploy the smart contracts (local or Sepolia).
+1. Deploy the smart contracts (local or chain of choice).
 2. Update the frontend configuration with the deployed contract address.
 3. Configure optional backend storage if applicable.
-4. Serve `frontend/` via GitHub Pages.
-5. Connect MetaMask as an authorized issuer to register assets.
+4. Serve app via deploy script.
+5. Connect MetaMask and create registry to become an authorized issuer to register assets.
 6. Verifiers upload files to confirm authenticity instantly.
 
 Only SHA-256 hashes are stored on-chain.  
