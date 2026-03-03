@@ -45,3 +45,4 @@ export const appKit = createAppKit({
 });
 
 export { useAppKit, AppKit, AppKitProvider } from '@reown/appkit-react-native';
+

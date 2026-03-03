@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native'; 
 import '@walletconnect/react-native-compat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppKit, AppKitProvider, appKit, wagmiAdapter } from '../config/AppKitConfig';
@@ -7,6 +8,26 @@ import { WagmiProvider } from 'wagmi';
 import { Stack } from 'expo-router';
 
 import { AuthProvider } from '../context/AuthContext';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @font-face {
+      font-family: 'ionicons';
+      src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.0.3/Fonts/Ionicons.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Ionicons';
+      src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.0.3/Fonts/Ionicons.ttf') format('truetype');
+    }
+    body, html, #root {
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: #bdc8fe; 
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 const queryClient = new QueryClient();
 const RESET_MARKER_KEY = '__wc_reset_epoch_applied__';
@@ -28,7 +49,6 @@ function shouldSuppressWalletConnectNoise(args) {
     text.includes('missing or invalid. decoded payload on topic')
   );
 }
-
 
 function getRequestedResetEpoch() {
   return process.env.EXPO_PUBLIC_WC_RESET_EPOCH || '';
@@ -63,6 +83,7 @@ async function applyWalletConnectResetPolicy() {
   }
 }
 
+// --- MAIN LAYOUT COMPONENT ---
 export default function Layout() {
   useEffect(() => {
     applyWalletConnectResetPolicy();
