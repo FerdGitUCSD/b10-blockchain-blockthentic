@@ -1,6 +1,6 @@
 # Vera: Blockchain-Backed Trust
 
-A multi-registry blockchain verification platform where authorized issuers anchor digital assets on-chain, store files off-chain, and provide a browser-based decentralized application (dApp) for secure registration and verification.
+A multi-registry blockchain verification platform where authorized issuers anchor digital assets on-chain, store files off-chain, and provide a browser and mobile app based decentralized application (dApp) for secure registration and verification.
 
 ---
 
