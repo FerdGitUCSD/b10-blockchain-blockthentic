@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, TextInput, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,7 +74,6 @@ function groupAssetsByRegistry(assets, registryMap) {
   return Array.from(grouped.values());
 }
 
-// Helper to filter Grouped Assets by Registry Name OR Document Name
 function filterGroups(groups, search) {
   if (!search) return groups;
   const lowerSearch = search.toLowerCase();
@@ -83,25 +82,24 @@ function filterGroups(groups, search) {
     const filteredItems = group.items.filter(item =>
       (item.file_name || '').toLowerCase().includes(lowerSearch)
     );
-    if (registryMatch) return group; // If registry matches, show all its items
-    if (filteredItems.length > 0) return { ...group, items: filteredItems }; // If items match, show only those items
+    if (registryMatch) return group; 
+    if (filteredItems.length > 0) return { ...group, items: filteredItems }; 
     return null;
   }).filter(Boolean);
 }
 
-// Reusable Search Component
-  const SearchBox = ({ value, onChange }) => (
-    <View style={styles.searchContainer}>
-      <Ionicons name="search-outline" size={18} color="rgba(0, 50, 98, 0.6)" />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Filter results"
-        placeholderTextColor="rgba(0, 50, 98, 0.4)"
-        value={value}
-        onChangeText={onChange}
-      />
-    </View>
-  );
+const SearchBox = ({ value, onChange }) => (
+  <View style={styles.searchContainer}>
+    <Ionicons name="search-outline" size={18} color="rgba(0, 50, 98, 0.6)" />
+    <TextInput
+      style={styles.searchInput}
+      placeholder="Filter results"
+      placeholderTextColor="rgba(0, 50, 98, 0.4)"
+      value={value}
+      onChangeText={onChange}
+    />
+  </View>
+);
 
 export default function HomePage() {
   const router = useRouter();
@@ -112,13 +110,19 @@ export default function HomePage() {
   const [registeredByMe, setRegisteredByMe] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Search & Expansion States
   const [searchRegistries, setSearchRegistries] = useState('');
   const [searchAssigned, setSearchAssigned] = useState('');
   const [searchRegistered, setSearchRegistered] = useState('');
   const [expandedRegistries, setExpandedRegistries] = useState(false);
   const [expandedAssigned, setExpandedAssigned] = useState(false);
   const [expandedRegistered, setExpandedRegistered] = useState(false);
+
+  // --- INFO MODAL STATE ---
+  const [infoModal, setInfoModal] = useState({ visible: false, title: '', text: '' });
+
+  const openInfo = (title, text) => {
+    setInfoModal({ visible: true, title, text });
+  };
 
   const loadData = React.useCallback(async () => {
     if (!user || !supabase) return;
@@ -275,7 +279,6 @@ export default function HomePage() {
     }
   };
 
-  // 1. Process Raw Data
   const contractCards = useMemo(() => (
     contracts.map((contract) => {
       const isOwner = contract.owner_id === user?.id;
@@ -303,7 +306,6 @@ export default function HomePage() {
   const assignedGroupedRaw = useMemo(() => groupAssetsByRegistry(assignedToMe, registryMap), [assignedToMe, registryMap]);
   const registeredGroupedRaw = useMemo(() => groupAssetsByRegistry(registeredByMe, registryMap), [registeredByMe, registryMap]);
 
-  // 2. Filter Logic
   const filteredRegistries = useMemo(() => {
     if (!searchRegistries) return contractCards;
     return contractCards.filter(c => c.title?.toLowerCase().includes(searchRegistries.toLowerCase()));
@@ -312,11 +314,9 @@ export default function HomePage() {
   const filteredAssigned = useMemo(() => filterGroups(assignedGroupedRaw, searchAssigned), [assignedGroupedRaw, searchAssigned]);
   const filteredRegistered = useMemo(() => filterGroups(registeredGroupedRaw, searchRegistered), [registeredGroupedRaw, searchRegistered]);
 
-  // 3. Slicing Logic (Max 3 unless expanded)
   const displayedRegistries = expandedRegistries ? filteredRegistries : filteredRegistries.slice(0, 3);
   const displayedAssigned = expandedAssigned ? filteredAssigned : filteredAssigned.slice(0, 3);
   const displayedRegistered = expandedRegistered ? filteredRegistered : filteredRegistered.slice(0, 3);
-
 
   const renderGroupedAssets = (groups, emptyMessage) => {
     if (groups.length === 0) {
@@ -363,7 +363,14 @@ export default function HomePage() {
             
             {/* --- SECTION: Accessible Registries --- */}
             <View style={styles.sectionHeaderContainer}>
-              <Text style={styles.sectionTitle}>Accessible Registries</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.sectionTitle}>Accessible Registries</Text>
+                <TouchableOpacity 
+                  onPress={() => openInfo('Accessible Registries', 'These are the blockchain smart contracts (vaults) you have permission to view or manage. Registries hold verified asset records.')}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color="#003262" />
+                </TouchableOpacity>
+              </View>
               <SearchBox value={searchRegistries} onChange={setSearchRegistries} />
             </View>
 
@@ -390,7 +397,14 @@ export default function HomePage() {
 
             {/* --- SECTION: Assets Assigned To Me --- */}
             <View style={styles.sectionHeaderContainer}>
-              <Text style={styles.sectionTitle}>Assets Assigned To Me</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.sectionTitle}>Assets Assigned To Me</Text>
+                <TouchableOpacity 
+                  onPress={() => openInfo('Assets Assigned To Me', 'Documents or files that someone else has registered on the blockchain and explicitly linked to your account for your review or ownership.')}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color="#003262" />
+                </TouchableOpacity>
+              </View>
               <SearchBox value={searchAssigned} onChange={setSearchAssigned} />
             </View>
             
@@ -405,7 +419,14 @@ export default function HomePage() {
 
             {/* --- SECTION: Assets Registered By Me --- */}
             <View style={styles.sectionHeaderContainer}>
-              <Text style={styles.sectionTitle}>Assets Registered By Me</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.sectionTitle}>Assets Registered By Me</Text>
+                <TouchableOpacity 
+                  onPress={() => openInfo('Assets Registered By Me', 'Files you have permanently anchored to the blockchain. You have mathematical proof of the exact time and state of these files when they were registered.')}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color="#003262" />
+                </TouchableOpacity>
+              </View>
               <SearchBox value={searchRegistered} onChange={setSearchRegistered} />
             </View>
 
@@ -420,6 +441,27 @@ export default function HomePage() {
           </ScrollView>
         </View>
       </SafeAreaView>
+
+      {/* --- INFO BUBBLE MODAL --- */}
+      <Modal visible={infoModal.visible} transparent={true} animationType="fade">
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setInfoModal({ ...infoModal, visible: false })}
+        >
+          <View style={styles.infoModalContent}>
+            <Text style={styles.infoModalTitle}>{infoModal.title}</Text>
+            <Text style={styles.infoModalText}>{infoModal.text}</Text>
+            <TouchableOpacity 
+              style={styles.infoModalButton} 
+              onPress={() => setInfoModal({ ...infoModal, visible: false })}
+            >
+              <Text style={styles.infoModalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -436,16 +478,21 @@ const styles = StyleSheet.create({
   sectionHeaderContainer: {
     marginBottom: 15,
     marginTop: 15,
-    gap: 12, // Space between title and search box
+    gap: 12, 
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: '#003262' },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)', // Slightly white to pop against background
+    backgroundColor: 'rgba(255, 255, 255, 0.4)', 
     borderWidth: 1,
     borderColor: 'rgba(0, 50, 98, 0.4)',
-    borderRadius: 25, // Oval shaped
+    borderRadius: 25, 
     paddingHorizontal: 15,
     paddingVertical: 10,
   },
@@ -455,7 +502,7 @@ const styles = StyleSheet.create({
     color: '#003262',
     fontSize: 14,
     fontWeight: '500',
-    ...(Platform.OS === 'web' && { outlineStyle: 'none' }), // Prevents weird browser border on click
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }), 
   },
   
   // Expansion Buttons
@@ -521,4 +568,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+
+  // Info Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 50, 98, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  infoModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#003262',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  infoModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#003262',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  infoModalText: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  infoModalButton: {
+    backgroundColor: '#003262',
+    borderRadius: 25,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  infoModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });

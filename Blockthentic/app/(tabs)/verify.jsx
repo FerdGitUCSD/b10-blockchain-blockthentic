@@ -9,6 +9,7 @@ import {
   Platform,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -358,6 +359,12 @@ export default function VerifyPage() {
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteRole, setInviteRole] = useState('user');
   const [inviteMessage, setInviteMessage] = useState({ type: '', text: '' });
+  
+  const [infoModal, setInfoModal] = useState({ visible: false, title: '', text: '' });
+
+  const openInfo = (title, text) => {
+    setInfoModal({ visible: true, title, text });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -1014,7 +1021,7 @@ export default function VerifyPage() {
 
   const renderRegistryPicker = () => (
     <View style={styles.block}>
-      <Text style={styles.label}>Registry</Text>
+      <Text style={[styles.label, { marginBottom: 6 }]}>Available Registries</Text>
       {filteredRegistries.length === 0 ? (
         <Text style={styles.emptyText}>No accessible deployed {selectedType} registries found.</Text>
       ) : (
@@ -1041,7 +1048,12 @@ export default function VerifyPage() {
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.title}>Registry Actions</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Registry Actions</Text>
+            <TouchableOpacity onPress={() => openInfo('Registry Actions', 'Register: Anchor a new file to the blockchain.\n\nVerify: Check if a file exists and is unaltered.\n\nRevoke: Invalidate a previously registered file.\n\nPermissions: Manage who can access or modify this registry.')}>
+              <Ionicons name="information-circle-outline" size={24} color="#003262" />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.modeRow}>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.REGISTER && styles.modeChipActive]} onPress={() => { setMode(MODE.REGISTER); setResult(null); }}>
@@ -1059,7 +1071,12 @@ export default function VerifyPage() {
           </View>
 
           <View style={styles.block}>
-            <Text style={styles.label}>Template Type</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Registry Type</Text>
+              <TouchableOpacity onPress={() => openInfo('Registry Type', 'Select a template type to filter the list of available registries below. You can only interact with registries matching the selected type.')}>
+                <Ionicons name="information-circle-outline" size={18} color="#003262" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.typeRow}>
               {Object.values(VERIFY_TYPES).map((t) => (
                 <TouchableOpacity
@@ -1077,7 +1094,7 @@ export default function VerifyPage() {
 
           {mode !== MODE.PERMISSIONS && (
             <View style={styles.block}>
-              <Text style={styles.label}>Input</Text>
+              <Text style={[styles.label, { marginBottom: 6 }]}>Input</Text>
               <TouchableOpacity style={styles.fileBtn} onPress={pickDocument}>
                 <Ionicons name="document-outline" size={18} color="#003262" />
                 <Text style={styles.fileBtnText}>{file ? `File: ${file.name}` : 'Pick file'}</Text>
@@ -1226,7 +1243,7 @@ export default function VerifyPage() {
 
           {mode === MODE.PERMISSIONS && selectedRegistry && selectedRegistry.user_role === 'owner' && (
              <View style={styles.block}>
-                <Text style={styles.label}>Invite Username</Text>
+                <Text style={[styles.label, { marginBottom: 6 }]}>Invite Username</Text>
                 <TextInput
                   style={styles.input}
                   value={inviteUsername}
@@ -1239,7 +1256,7 @@ export default function VerifyPage() {
                   placeholderTextColor="#666"
                 />
                 
-                <Text style={styles.label}>Role</Text>
+                <Text style={[styles.label, { marginBottom: 6 }]}>Role</Text>
                 <View style={styles.typeRow}>
                   {MEMBER_ROLES.map((role) => (
                     <TouchableOpacity
@@ -1262,7 +1279,7 @@ export default function VerifyPage() {
                   </Text>
                 ) : null}
 
-                <Text style={[styles.label, { marginTop: 20 }]}>Current Members</Text>
+                <Text style={[styles.label, { marginTop: 20, marginBottom: 6 }]}>Current Members</Text>
                 {members.length === 0 ? (
                   <Text style={styles.emptyText}>No members added yet.</Text>
                 ) : (
@@ -1302,6 +1319,26 @@ export default function VerifyPage() {
           {fileHash && mode !== MODE.PERMISSIONS ? <Text style={styles.footerHint}>Last hash: {short(fileHash)}</Text> : null}
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={infoModal.visible} transparent={true} animationType="fade">
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setInfoModal({ ...infoModal, visible: false })}
+        >
+          <View style={styles.infoModalContent}>
+            <Text style={styles.infoModalTitle}>{infoModal.title}</Text>
+            <Text style={styles.infoModalText}>{infoModal.text}</Text>
+            <TouchableOpacity 
+              style={styles.infoModalButton} 
+              onPress={() => setInfoModal({ ...infoModal, visible: false })}
+            >
+              <Text style={styles.infoModalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -1311,13 +1348,15 @@ const styles = StyleSheet.create({
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1, paddingTop: 10 },
   content: { paddingHorizontal: 22, paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
-  title: { fontSize: 28, color: '#003262', fontWeight: '700', textAlign: 'center', marginVertical: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginVertical: 10 },
+  title: { fontSize: 28, color: '#003262', fontWeight: '700' },
   modeRow: { flexDirection: 'row', gap: 10, marginBottom: 14, justifyContent: 'center' },
   modeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   modeChipActive: { backgroundColor: '#7d8ec4' },
   modeText: { color: '#003262', fontWeight: '700' },
   block: { marginBottom: 12 },
-  label: { color: '#003262', fontWeight: '700', marginBottom: 6 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  label: { color: '#003262', fontWeight: '700' },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   typeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   typeChipActive: { backgroundColor: '#7d8ec4' },
@@ -1367,4 +1406,50 @@ const styles = StyleSheet.create({
   },
   memberName: { color: '#003262', fontWeight: '600' },
   memberRole: { color: '#003262', fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 50, 98, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  infoModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#003262',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  infoModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#003262',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  infoModalText: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  infoModalButton: {
+    backgroundColor: '#003262',
+    borderRadius: 25,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  infoModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });

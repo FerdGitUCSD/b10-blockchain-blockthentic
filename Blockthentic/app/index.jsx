@@ -49,7 +49,7 @@ const AccordionItem = ({ title, content }) => {
 
   const contentMaxHeight = animationController.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 500], 
+    outputRange: [0, 1200], 
   });
 
   return (
@@ -195,7 +195,7 @@ export default function Home() {
                     >
                       <AccordionItem 
                         title="How does this work?" 
-                        content={"Create (create.jsx): Users deploy standard smart contracts (via a factory) to create \"Registries\" (like secure folders) on chains like Arbitrum or Polygon. These registries have access controls (owner, whitelist, public) and content policies (e.g., PDF only, images only).\n\nRegister/Verify (verify.jsx): Users upload a file (temporarily or to Supabase storage), the app generates a SHA-256 hash of that file, and that exact hash is permanently registered on-chain inside a specific Registry. If someone wants to verify a file later, they upload it, the app hashes it, and checks the blockchain to see if that exact hash exists and hasn't been tampered with. It also includes an advanced role-based permission system (owners inviting admins/users to manage the registry).\n\nHome/Profile: Dashboards to view what registries you have access to, which assets you've anchored to the blockchain, and which assets others have explicitly assigned to your account."} 
+                        content={"Create: Users deploy standard smart contracts (via a factory) to create \"Registries\" (like secure folders) on chains like Arbitrum or Polygon. These registries have access controls (owner, whitelist, public) and content policies (e.g., PDF only, images only).\n\nRegister/Verify: Users upload a file (temporarily or to Supabase storage), the app generates a SHA-256 hash of that file, and that exact hash is permanently registered on-chain inside a specific Registry. If someone wants to verify a file later, they upload it, the app hashes it, and checks the blockchain to see if that exact hash exists and hasn't been tampered with. It also includes an advanced role-based permission system (owners inviting admins/users to manage the registry).\n\nHome/Profile: Dashboards to view what registries you have access to, which assets you've anchored to the blockchain, and which assets others have explicitly assigned to your account."} 
                       />
                       <AccordionItem 
                         title="How is this secure?" 

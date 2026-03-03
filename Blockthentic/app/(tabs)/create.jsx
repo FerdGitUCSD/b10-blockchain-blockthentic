@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -129,11 +129,11 @@ function getRegistryCreatedFromReceipt(receipt) {
         return decoded.args;
       }
     } catch {
-      // Not this event
     }
   }
   return null;
 }
+
 function isFeeCapError(error) {
   const message = (error?.message || String(error || '')).toLowerCase();
   return message.includes('max fee per gas less than block base fee') || message.includes('fee cap') && message.includes('base fee');
@@ -171,6 +171,7 @@ async function runWithFeeRetry(task) {
     return task();
   }
 }
+
 export default function CreatePage() {
   const router = useRouter();
   const publicClient = usePublicClient();
@@ -184,6 +185,7 @@ export default function CreatePage() {
   const [pendingTxHash, setPendingTxHash] = useState(null);
   const [lastDeployment, setLastDeployment] = useState(null);
   const [configPreviewHash, setConfigPreviewHash] = useState(null);
+  const [infoModal, setInfoModal] = useState({ visible: false, title: '', text: '' });
 
   const [formData, setFormData] = useState({
     type: null,
@@ -204,6 +206,10 @@ export default function CreatePage() {
   }, [formData.type]);
 
   const selectedChainConfig = useMemo(() => CHAIN_CONFIG[formData.chain] || null, [formData.chain]);
+
+  const openInfo = (title, text) => {
+    setInfoModal({ visible: true, title, text });
+  };
 
   const createTemplateConfig = () => ({
     template_type: formData.type,
@@ -427,7 +433,13 @@ export default function CreatePage() {
         })}
       </View>
 
-      <Text style={[styles.stepSubtitle, { marginTop: 22 }]}>Choose a blockchain</Text>
+      <View style={[styles.inputLabelRow, { marginTop: 22 }]}>
+        <Text style={styles.inputLabel}>Choose a blockchain</Text>
+        <TouchableOpacity onPress={() => openInfo('Blockchain Networks', 'Different networks offer varying balances of speed, cost, and security. Ethereum is highly secure but more expensive, while Polygon and Arbitrum are faster, cheaper Layer-2 alternatives.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.chipContainer}>
         {CHAINS.map((chain) => {
           const selected = formData.chain === chain.id;
@@ -450,7 +462,9 @@ export default function CreatePage() {
       <Text style={styles.stepTitle}>Configure</Text>
       <Text style={styles.stepSubtitle}>Define template configuration before deployment</Text>
 
-      <Text style={styles.inputLabel}>Registry Title</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Registry Title</Text>
+      </View>
       <TextInput
         style={styles.input}
         value={formData.name}
@@ -459,7 +473,9 @@ export default function CreatePage() {
         placeholderTextColor="#777"
       />
 
-      <Text style={styles.inputLabel}>Description (optional)</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Description (optional)</Text>
+      </View>
       <TextInput
         style={styles.input}
         value={formData.description}
@@ -468,7 +484,12 @@ export default function CreatePage() {
         placeholderTextColor="#777"
       />
 
-      <Text style={styles.inputLabel}>Template Profile</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Template Profile</Text>
+        <TouchableOpacity onPress={() => openInfo('Template Profile', 'Pre-configured settings optimized for specific use cases (e.g., Academic Degrees, Medical Records). This automatically structures your registry for industry standards.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <View style={styles.chipContainer}>
         {profileOptions.map((option) => {
           const selected = formData.profile === option.id;
@@ -484,8 +505,12 @@ export default function CreatePage() {
         })}
       </View>
 
-      <Text style={styles.inputLabel}>Content Policy</Text>
-      <Text style={styles.stepSubtitle}>Enforced on new registries during file registration</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Content Policy</Text>
+        <TouchableOpacity onPress={() => openInfo('Content Policy', 'Strictly enforces the type of files that can be anchored to this registry.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <View style={styles.chipContainer}>
         {(CONTENT_POLICY_OPTIONS[formData.type] || []).map((policy) => {
           const selected = formData.contentPolicy === policy.id;
@@ -501,7 +526,12 @@ export default function CreatePage() {
         })}
       </View>
 
-      <Text style={styles.inputLabel}>Access Mode</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Access Mode</Text>
+        <TouchableOpacity onPress={() => openInfo('Access Mode', 'Determines who can view and verify assets in this registry. "Owner only" restricts it to you, "Whitelist" allows users you specifically invite, and "Public read" allows anyone to verify your assets.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <View style={styles.chipContainer}>
         {ACCESS_MODES.map((mode) => {
           const selected = formData.accessMode === mode.id;
@@ -517,7 +547,12 @@ export default function CreatePage() {
         })}
       </View>
 
-      <Text style={styles.inputLabel}>Required Approvals</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Required Approvals</Text>
+        <TouchableOpacity onPress={() => openInfo('Required Approvals', 'The number of authorized signers needed to successfully register a new asset. Setting this higher than 1 creates a multi-signature environment for better security.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <View style={styles.chipContainer}>
         {APPROVAL_COUNTS.map((count) => {
           const selected = Number(formData.requiredApprovals) === count;
@@ -533,7 +568,12 @@ export default function CreatePage() {
         })}
       </View>
 
-      <Text style={styles.inputLabel}>Signer Rules (comma-separated)</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Signer Rules (comma-separated)</Text>
+        <TouchableOpacity onPress={() => openInfo('Signer Rules', 'Define custom organizational roles (e.g., "finance_admin", "legal_reviewer") that dictate who has permission to register or approve assets. Separate multiple roles with commas.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <TextInput
         style={styles.input}
         value={formData.signerRules}
@@ -542,7 +582,12 @@ export default function CreatePage() {
         placeholderTextColor="#777"
       />
 
-      <Text style={styles.inputLabel}>Metadata Fields (comma-separated)</Text>
+      <View style={styles.inputLabelRow}>
+        <Text style={styles.inputLabel}>Metadata Fields (comma-separated)</Text>
+        <TouchableOpacity onPress={() => openInfo('Metadata Fields', 'Custom data attributes (like "issuerName" or "expirationDate") that must be attached to every asset registered in this vault. Separate multiple fields with commas.')}>
+          <Ionicons name="information-circle-outline" size={18} color="#003262" />
+        </TouchableOpacity>
+      </View>
       <TextInput
         style={styles.input}
         value={formData.metadataFields}
@@ -633,6 +678,25 @@ export default function CreatePage() {
           </View>
         )}
       </SafeAreaView>
+
+      <Modal visible={infoModal.visible} transparent={true} animationType="fade">
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setInfoModal({ ...infoModal, visible: false })}
+        >
+          <View style={styles.infoModalContent}>
+            <Text style={styles.infoModalTitle}>{infoModal.title}</Text>
+            <Text style={styles.infoModalText}>{infoModal.text}</Text>
+            <TouchableOpacity 
+              style={styles.infoModalButton} 
+              onPress={() => setInfoModal({ ...infoModal, visible: false })}
+            >
+              <Text style={styles.infoModalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -661,7 +725,8 @@ const styles = StyleSheet.create({
   boxDescription: { fontSize: 13, color: '#003262' },
   scrollContainer: { flex: 1, width: '100%' },
   scrollInner: { paddingBottom: 30 },
-  inputLabel: { fontSize: 16, fontWeight: '700', color: '#003262', marginBottom: 8, marginTop: 8, alignSelf: 'flex-start' },
+  inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6, alignSelf: 'flex-start' },
+  inputLabel: { fontSize: 16, fontWeight: '700', color: '#003262' },
   input: { width: '100%', backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 18, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#003262', marginBottom: 10, color: '#003262' },
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', width: '100%', marginBottom: 6 },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: '#003262', backgroundColor: 'rgba(125,142,196,0.35)' },
@@ -681,17 +746,50 @@ const styles = StyleSheet.create({
   navStack: { alignItems: 'center' },
   navTextContinue: { fontSize: 18, color: '#003262', fontWeight: '600' },
   navTextBack: { fontSize: 16, color: '#003262', fontWeight: '400' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 50, 98, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  infoModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#003262',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  infoModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#003262',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  infoModalText: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  infoModalButton: {
+    backgroundColor: '#003262',
+    borderRadius: 25,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  infoModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
