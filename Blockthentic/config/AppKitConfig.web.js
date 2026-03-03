@@ -1,28 +1,24 @@
+import React from 'react';
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { sepolia, mainnet } from '@reown/appkit/networks';
+import { sepolia, polygonAmoy, arbitrumSepolia } from '@reown/appkit/networks';
 
-// 1. Project ID
-const projectId = "0cce245d34bb09adb3aadf8f9616a9bc";
+const projectId = '0cce245d34bb09adb3aadf8f9616a9bc';
 
-// 2. Web Metadata
 const metadata = {
-  name: "Vera",
-  description: "Document verification on blockchain",
-  url: typeof window !== 'undefined' ? window.location.origin : "https://blockthentic.app",
-  icons: ["https://avatars.githubusercontent.com/u/179229932"],
+  name: 'Vera',
+  description: 'Document verification on blockchain',
+  url: typeof window !== 'undefined' ? window.location.origin : 'https://blockthentic.app',
+  icons: ['https://avatars.githubusercontent.com/u/179229932'],
 };
 
-// 3. Define networks
-const networks = [sepolia, mainnet];
+const networks = [sepolia, polygonAmoy, arbitrumSepolia];
 
-// 4. Create Web Wagmi Adapter
 export const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks,
 });
 
-// 5. Create Web AppKit Instance
 export const appKit = createAppKit({
   adapters: [wagmiAdapter],
   networks,
@@ -30,8 +26,14 @@ export const appKit = createAppKit({
   metadata,
   defaultNetwork: sepolia,
   features: {
-    analytics: false
-  }
+    analytics: false,
+    swaps: false,
+    onramp: false,
+    email: false,
+    socials: false,
+  },
 });
 
 export { useAppKit } from '@reown/appkit/react';
+export const AppKitProvider = ({ children }) => <>{children}</>;
+export const AppKit = () => null;

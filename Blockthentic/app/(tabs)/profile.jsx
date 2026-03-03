@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppKit } from '@reown/appkit-react-native';
+import { useAppKit } from '../../config/AppKitConfig';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -383,4 +383,5 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 16, color: '#003262', fontWeight: 'bold' },
   divider: { height: 1, backgroundColor: '#003262', opacity: 0.3, width: '100%' },
 });
+
 

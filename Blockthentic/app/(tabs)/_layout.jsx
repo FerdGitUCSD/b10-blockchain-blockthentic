@@ -1,4 +1,4 @@
-﻿import { Tabs, useRouter } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
@@ -97,7 +97,5 @@ const styles = StyleSheet.create({
   webContainer: {
     flex: 1,
     width: '100%',
-    maxWidth: 1000,
-    alignSelf: 'center',
   },
 });

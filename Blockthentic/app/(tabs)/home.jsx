@@ -306,11 +306,10 @@ export default function HomePage() {
             <Text style={styles.greetingText}>Hi, {userName}</Text>
           </View>
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Accessible Registries</Text>
-          </View>
-
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Accessible Registries</Text>
+            </View>
             {contractCards.length > 0 ? (
               contractCards.map((contract) => (
                 <ContractCard key={contract.id} item={contract} />
@@ -401,6 +400,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 });
+
 
 
 

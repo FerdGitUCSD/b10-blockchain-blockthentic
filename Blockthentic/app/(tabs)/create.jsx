@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, ScrollView, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -407,7 +407,11 @@ export default function CreatePage() {
   };
 
   const renderTemplateSelection = () => (
-    <View style={styles.stepContent}>
+    <ScrollView
+      style={styles.scrollContainer}
+      contentContainerStyle={[styles.stepContent, styles.templateScrollContent]}
+      showsVerticalScrollIndicator={Platform.OS !== 'web'}
+    >
       <Text style={styles.stepTitle}>Select Template</Text>
       <Text style={styles.stepSubtitle}>Choose a registry template and deployment chain</Text>
 
@@ -442,7 +446,7 @@ export default function CreatePage() {
           );
         })}
       </View>
-    </View>
+    </ScrollView>
   );
 
   const renderConfigure = () => (
@@ -643,14 +647,14 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingTop: 10 },
   headerText: { fontSize: 26, fontWeight: '400', color: '#003262', textAlign: 'center', marginTop: 10, marginBottom: 10 },
   topSection: { alignItems: 'center' },
-  mainContentWrapper: { flex: 1, paddingHorizontal: 25 },
+  mainContentWrapper: { flex: 1, width: '100%', paddingHorizontal: 25 },
   progressContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   stepCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#003262' },
   stepCircleActive: { borderWidth: 2 },
   stepCircleComplete: { borderWidth: 2 },
   stepText: { color: '#003262', fontWeight: '700' },
   stepLine: { height: 1, width: 60, backgroundColor: '#003262', marginHorizontal: 5 },
-  stepContent: { flex: 1, alignItems: 'center' },
+  stepContent: { flex: 1, width: '100%', alignItems: 'center' },
   stepTitle: { fontSize: 20, fontWeight: '800', color: '#003262', textAlign: 'center', alignSelf: 'center' },
   stepSubtitle: { fontSize: 14, color: '#003262', marginBottom: 18, textAlign: 'center', alignSelf: 'center' },
   selectionContainer: { gap: 12, marginTop: 8, width: '100%' },
@@ -677,11 +681,13 @@ const styles = StyleSheet.create({
   walletAddress: { fontSize: 12, color: '#003262', opacity: 0.85 },
   successButtonsContainer: { marginTop: 28, alignItems: 'center', gap: 16 },
   textButton: { color: '#003262', fontSize: 16, fontWeight: '600' },
-  navBar: { alignItems: 'center', justifyContent: 'center', paddingBottom: 110, paddingTop: 10 },
+  navBar: { alignItems: 'center', justifyContent: 'center', paddingBottom: Platform.OS === 'web' ? 24 : 110, paddingTop: 10 },
   navStack: { alignItems: 'center' },
   navTextContinue: { fontSize: 18, color: '#003262', fontWeight: '600' },
   navTextBack: { fontSize: 16, color: '#003262', fontWeight: '400' },
 });
+
+
 
 
 

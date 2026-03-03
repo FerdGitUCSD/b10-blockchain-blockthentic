@@ -773,7 +773,7 @@ export default function VerifyPage() {
     <View style={styles.container}>
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>
           <Text style={styles.title}>Registry Actions</Text>
 
           <View style={styles.modeRow}>
@@ -969,6 +969,7 @@ const styles = StyleSheet.create({
   resultLine: { color: '#003262', fontSize: 12 },
   footerHint: { marginTop: 8, color: '#003262', opacity: 0.8, fontSize: 12, textAlign: 'center' },
 });
+
 
 
 

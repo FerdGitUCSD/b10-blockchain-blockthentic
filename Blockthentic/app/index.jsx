@@ -1,4 +1,4 @@
-﻿// app/index.jsx
+// app/index.jsx
 import React, { useState, useRef } from 'react';
 import { 
   View, 
@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppKit } from '@reown/appkit-react-native';
+import { useAppKit } from '../config/AppKitConfig';
 import { useAccount } from 'wagmi';
 import { useAuth } from '../context/AuthContext';
 
