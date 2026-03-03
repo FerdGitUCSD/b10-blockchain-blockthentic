@@ -195,15 +195,15 @@ export default function Home() {
                     >
                       <AccordionItem 
                         title="How does this work?" 
-                        content="Create a verification contract for your document. Share the contract with recipients or merge with your own platform. Verify the document's authenticity on the blockchain instantly." 
+                        content={"Create (create.jsx): Users deploy standard smart contracts (via a factory) to create \"Registries\" (like secure folders) on chains like Arbitrum or Polygon. These registries have access controls (owner, whitelist, public) and content policies (e.g., PDF only, images only).\n\nRegister/Verify (verify.jsx): Users upload a file (temporarily or to Supabase storage), the app generates a SHA-256 hash of that file, and that exact hash is permanently registered on-chain inside a specific Registry. If someone wants to verify a file later, they upload it, the app hashes it, and checks the blockchain to see if that exact hash exists and hasn't been tampered with. It also includes an advanced role-based permission system (owners inviting admins/users to manage the registry).\n\nHome/Profile: Dashboards to view what registries you have access to, which assets you've anchored to the blockchain, and which assets others have explicitly assigned to your account."} 
                       />
                       <AccordionItem 
                         title="How is this secure?" 
-                        content="Vera leverages the immutability and transparency of blockchain technology to ensure that once a document is verified, it cannot be altered or tampered with." 
+                        content="Vera hashes your files client-side using SHA-256 and stores only the hash on-chain. Because blockchain records are immutable, a registered hash cannot be altered or deleted. Verification is a read-only check that compares a file's hash against what was recorded, so anyone can confirm authenticity without trusting a central authority. If an asset needs to be invalidated, the paired revocation registry allows the owner to revoke it on-chain with a recorded reason, rather than deleting or modifying the original record."  
                       />
                       <AccordionItem 
                         title="Is this free?" 
-                        content="Yes, getting started is free! We offer premium tiers for enterprise-level volume verification. (More details coming soon)" 
+                        content="Yes, all verification is free! However, creating a registry does require a one time gas fee to deploy the smart contract pair. Registering and revoking actions also require gas fees each time." 
                       />
                     </ScrollView>
 
