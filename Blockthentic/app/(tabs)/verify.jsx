@@ -1047,7 +1047,13 @@ export default function VerifyPage() {
     <View style={styles.container}>
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>`r`n          <View style={styles.titleRow}>`r`n            <Text style={styles.title}>Registry Actions</Text>`r`n            <TouchableOpacity onPress={() => openInfo('Registry Actions', 'Register: Anchor a new file to the blockchain.\n\nVerify: Check if a file exists and is unaltered.\n\nRevoke: Invalidate a previously registered file.\n\nPermissions: Manage who can access or modify this registry.')}>`r`n              <Ionicons name="information-circle-outline" size={24} color="#003262" />`r`n            </TouchableOpacity>`r`n          </View>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Registry Actions</Text>
+            <TouchableOpacity onPress={() => openInfo('Registry Actions', 'Register: Anchor a new file to the blockchain.\\n\\nVerify: Check if a file exists and is unaltered.\\n\\nRevoke: Invalidate a previously registered file.\\n\\nPermissions: Manage who can access or modify this registry.')}>
+              <Ionicons name="information-circle-outline" size={24} color="#003262" />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.modeRow}>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.REGISTER && styles.modeChipActive]} onPress={() => { setMode(MODE.REGISTER); setResult(null); }}>
