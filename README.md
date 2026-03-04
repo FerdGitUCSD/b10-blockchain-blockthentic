@@ -309,7 +309,7 @@ cd Blockthentic/app
 npx serve .
 ```
 
-Open `http://localhost:3000` in your browser. MetaMask (set to the correct network) is required for issuer actions. Verification is read-only and works without a wallet.
+Open `http://localhost:8081` in your browser. MetaMask (set to the correct network) is required for issuer actions. Verification is read-only and works without a wallet.
 
 ---
 
