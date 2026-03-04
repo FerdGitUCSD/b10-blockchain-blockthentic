@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Platform,
   TextInput,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,6 +28,7 @@ import { wagmiAdapter } from '../../config/AppKitConfig';
 const MODE = {
   REGISTER: 'register',
   VERIFY: 'verify',
+  REVOKE: 'revoke',
   PERMISSIONS: 'permissions',
 };
 
@@ -112,6 +115,61 @@ const REGISTER_ABI = {
     },
   ],
 };
+
+const REVOKE_ABI = [
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'hash', type: 'bytes32' },
+      { internalType: 'uint8', name: 'reason', type: 'uint8' },
+    ],
+    name: 'revoke',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'hash', type: 'bytes32' }],
+    name: 'isRevoked',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'hash', type: 'bytes32' }],
+    name: 'getStatus',
+    outputs: [
+      { internalType: 'bool', name: 'exists', type: 'bool' },
+      { internalType: 'bool', name: 'valid', type: 'bool' },
+      { internalType: 'uint8', name: 'reason', type: 'uint8' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
+const REVOCATION_REASONS = [
+  { id: 0, label: 'None' },
+  { id: 1, label: 'Expired' },
+  { id: 2, label: 'Superseded' },
+  { id: 3, label: 'Key Compromise' },
+  { id: 4, label: 'Affiliation Changed' },
+  { id: 5, label: 'Cessation of Operation' },
+  { id: 6, label: 'Privilege Withdrawn' },
+  { id: 7, label: 'Administrative Error' },
+  { id: 8, label: 'Fraudulent' },
+  { id: 9, label: 'Format Invalid' },
+  { id: 10, label: 'Other' },
+];
+
+function getRevocationReasonLabel(reasonId) {
+  const found = REVOCATION_REASONS.find((r) => r.id === Number(reasonId));
+  return found ? found.label : `Unknown (${reasonId})`;
+}
+
+function hasRevocationRegistry(registry) {
+  const addr = registry?.revocation_address;
+  return addr && addr !== '0x' && addr !== '0x0000000000000000000000000000000000000000';
+}
 
 const VERIFY_FUNCTION = {
   document: 'verifyDocument',
@@ -295,11 +353,18 @@ export default function VerifyPage() {
   const [registries, setRegistries] = useState([]);
   const [selectedRegistryId, setSelectedRegistryId] = useState(null);
   const [result, setResult] = useState(null);
+  const [selectedRevokeReason, setSelectedRevokeReason] = useState(1);
 
   const [members, setMembers] = useState([]);
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteRole, setInviteRole] = useState('user');
   const [inviteMessage, setInviteMessage] = useState({ type: '', text: '' });
+  
+  const [infoModal, setInfoModal] = useState({ visible: false, title: '', text: '' });
+
+  const openInfo = (title, text) => {
+    setInfoModal({ visible: true, title, text });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -310,7 +375,7 @@ export default function VerifyPage() {
       const [{ data: allRegistries, error: regErr }, { data: memberships, error: memberErr }] = await Promise.all([
         supabase
           .from('registries')
-          .select('id,owner_id,name,template_type,template_config,contract_address,chain,access_mode,deployment_status,created_at')
+          .select('id,owner_id,name,template_type,template_config,contract_address,revocation_address,chain,access_mode,deployment_status,created_at')
           .not('contract_address', 'is', null)
           .eq('deployment_status', 'deployed')
           .order('created_at', { ascending: false }),
@@ -754,8 +819,32 @@ export default function VerifyPage() {
         record = query.data || null;
       }
 
+      let revocationStatus = null;
+      if (verified && hasRevocationRegistry(selectedRegistry)) {
+        try {
+          const [exists, valid, reason] = await publicClient.readContract({
+            address: selectedRegistry.revocation_address,
+            abi: REVOKE_ABI,
+            functionName: 'getStatus',
+            args: [hash],
+          });
+          revocationStatus = { exists, valid, reason: Number(reason) };
+        } catch (revErr) {
+          console.warn('Revocation check failed (registry may predate revocation):', revErr.message);
+        }
+      }
+
+      let message;
+      if (!verified) {
+        message = 'Hash not found in this registry.';
+      } else if (revocationStatus && !revocationStatus.valid) {
+        message = `Hash exists but has been REVOKED (reason: ${getRevocationReasonLabel(revocationStatus.reason)}).`;
+      } else {
+        message = `Hash is valid and active in this registry${record?.assigned_username ? ` (assigned to ${record.assigned_username})` : ''}.`;
+      }
+
       setResult({
-        ok: Boolean(verified),
+        ok: verified && (!revocationStatus || revocationStatus.valid),
         mode: MODE.VERIFY,
         hash,
         txHash: record?.tx_hash || null,
@@ -763,13 +852,103 @@ export default function VerifyPage() {
         fileName: record?.file_name || null,
         metadataJson: record?.metadata_json || null,
         signerRuleLabel: record?.signer_rule_label || null,
-        message: verified
-          ? `Hash exists in this registry${record?.assigned_username ? ` (assigned to ${record.assigned_username})` : ''}.`
-          : 'Hash not found in this registry.',
+        revoked: revocationStatus ? !revocationStatus.valid : false,
+        revocationReason: revocationStatus?.reason || null,
+        message,
       });
     } catch (err) {
       setResult({ ok: false, mode: MODE.VERIFY, message: formatActionError(err, 'Verification failed') });
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    if (!selectedRegistry?.contract_address) {
+      Alert.alert('Missing registry', 'Select a deployed registry.');
+      return;
+    }
+    if (!selectedRegistry?.can_register) {
+      Alert.alert('Permission denied', 'Only registry owner/admin can revoke assets.');
+      return;
+    }
+    if (!hasRevocationRegistry(selectedRegistry)) {
+      Alert.alert('No revocation registry', 'This registry was deployed without a revocation contract. Only registries created after the revocation update support this feature.');
+      return;
+    }
+    if (!publicClient) {
+      Alert.alert('Client unavailable', 'Wallet client is not ready.');
+      return;
+    }
+
+    try {
+      setBusy(true);
+      ensureWalletOnRegistryChain();
+
+      const hash = await getVerifyHash();
+      setFileHash(hash);
+
+      const verified = await publicClient.readContract({
+        address: selectedRegistry.contract_address,
+        abi: VERIFY_ABI[selectedType],
+        functionName: VERIFY_FUNCTION[selectedType],
+        args: [hash, hash],
+      });
+
+      if (!verified) {
+        setResult({
+          ok: false,
+          mode: MODE.REVOKE,
+          hash,
+          message: 'Hash not found in this registry. Cannot revoke an unregistered asset.',
+        });
+        return;
+      }
+
+      try {
+        const alreadyRevoked = await publicClient.readContract({
+          address: selectedRegistry.revocation_address,
+          abi: REVOKE_ABI,
+          functionName: 'isRevoked',
+          args: [hash],
+        });
+        if (alreadyRevoked) {
+          setResult({
+            ok: false,
+            mode: MODE.REVOKE,
+            hash,
+            message: 'This asset has already been revoked.',
+          });
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-revocation check failed:', checkErr.message);
+      }
+
+      const txHash = await runWithFeeRetry(async () => {
+        const hashTx = await writeContractAsync({
+          address: selectedRegistry.revocation_address,
+          abi: REVOKE_ABI,
+          functionName: 'revoke',
+          args: [hash, selectedRevokeReason],
+        });
+        setPendingTxHash(hashTx);
+        return hashTx;
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      setResult({
+        ok: true,
+        mode: MODE.REVOKE,
+        hash,
+        txHash,
+        message: `Asset revoked successfully (reason: ${getRevocationReasonLabel(selectedRevokeReason)}).`,
+      });
+    } catch (err) {
+      setResult({ ok: false, mode: MODE.REVOKE, message: formatActionError(err, 'Revocation failed') });
+    } finally {
+      setPendingTxHash(null);
       setBusy(false);
     }
   };
@@ -835,13 +1014,14 @@ export default function VerifyPage() {
     setAssignUsername('');
     setMetadataValues({});
     setSelectedSignerRule('');
+    setSelectedRevokeReason(1);
     setFileHash(null);
     setResult(null);
   };
 
   const renderRegistryPicker = () => (
     <View style={styles.block}>
-      <Text style={styles.label}>Registry</Text>
+      <Text style={[styles.label, { marginBottom: 6 }]}>Available Registries</Text>
       {filteredRegistries.length === 0 ? (
         <Text style={styles.emptyText}>No accessible deployed {selectedType} registries found.</Text>
       ) : (
@@ -867,8 +1047,7 @@ export default function VerifyPage() {
     <View style={styles.container}>
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>
-          <Text style={styles.title}>Registry Actions</Text>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>`r`n          <View style={styles.titleRow}>`r`n            <Text style={styles.title}>Registry Actions</Text>`r`n            <TouchableOpacity onPress={() => openInfo('Registry Actions', 'Register: Anchor a new file to the blockchain.\n\nVerify: Check if a file exists and is unaltered.\n\nRevoke: Invalidate a previously registered file.\n\nPermissions: Manage who can access or modify this registry.')}>`r`n              <Ionicons name="information-circle-outline" size={24} color="#003262" />`r`n            </TouchableOpacity>`r`n          </View>
 
           <View style={styles.modeRow}>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.REGISTER && styles.modeChipActive]} onPress={() => { setMode(MODE.REGISTER); setResult(null); }}>
@@ -877,13 +1056,21 @@ export default function VerifyPage() {
             <TouchableOpacity style={[styles.modeChip, mode === MODE.VERIFY && styles.modeChipActive]} onPress={() => { setMode(MODE.VERIFY); setResult(null); }}>
               <Text style={styles.modeText}>Verify</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.modeChip, mode === MODE.REVOKE && styles.modeChipActive]} onPress={() => { setMode(MODE.REVOKE); setResult(null); }}>
+              <Text style={styles.modeText}>Revoke</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.PERMISSIONS && styles.modeChipActive]} onPress={() => { setMode(MODE.PERMISSIONS); setResult(null); }}>
               <Text style={styles.modeText}>Permissions</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.block}>
-            <Text style={styles.label}>Template Type</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Registry Type</Text>
+              <TouchableOpacity onPress={() => openInfo('Registry Type', 'Select a template type to filter the list of available registries below. You can only interact with registries matching the selected type.')}>
+                <Ionicons name="information-circle-outline" size={18} color="#003262" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.typeRow}>
               {Object.values(VERIFY_TYPES).map((t) => (
                 <TouchableOpacity
@@ -901,11 +1088,12 @@ export default function VerifyPage() {
 
           {mode !== MODE.PERMISSIONS && (
             <View style={styles.block}>
-              <Text style={styles.label}>Input</Text>
+              <Text style={[styles.label, { marginBottom: 6 }]}>Input</Text>
               <TouchableOpacity style={styles.fileBtn} onPress={pickDocument}>
                 <Ionicons name="document-outline" size={18} color="#003262" />
                 <Text style={styles.fileBtnText}>{file ? `File: ${file.name}` : 'Pick file'}</Text>
               </TouchableOpacity>
+              
               {mode === MODE.VERIFY && (
                 <TextInput
                   style={styles.input}
@@ -917,6 +1105,29 @@ export default function VerifyPage() {
                   autoCorrect={false}
                 />
               )}
+
+              {mode === MODE.REVOKE && (
+                <>
+                  <Text style={[styles.registryMeta, { marginTop: 6, marginBottom: 8 }]}>Revocation Reason</Text>
+                  <View style={styles.typeRow}>
+                    {REVOCATION_REASONS.filter((r) => r.id !== 0).map((reason) => (
+                      <TouchableOpacity
+                        key={reason.id}
+                        style={[styles.typeChip, selectedRevokeReason === reason.id && styles.typeChipActive]}
+                        onPress={() => setSelectedRevokeReason(reason.id)}
+                      >
+                        <Text style={styles.typeText}>{reason.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {!hasRevocationRegistry(selectedRegistry) && selectedRegistry && (
+                    <Text style={[styles.permissionText, { color: '#b71c1c', marginTop: 6 }]}>
+                      This registry does not have a revocation contract. Only new registries support revocation.
+                    </Text>
+                  )}
+                </>
+              )}
+
               {mode === MODE.REGISTER && (
                 <>
                   <TextInput
@@ -991,28 +1202,42 @@ export default function VerifyPage() {
           )}
 
           {mode !== MODE.PERMISSIONS && (
-            <TouchableOpacity
-              style={[styles.primaryBtn, busy && styles.disabledBtn]}
-              disabled={busy || !selectedRegistryId}
-              onPress={mode === MODE.REGISTER ? handleRegister : handleVerify}
-            >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{mode === MODE.REGISTER ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain') : 'Verify Hash'}</Text>}
-            </TouchableOpacity>
-          )}
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.primaryBtn, 
+                  mode === MODE.REVOKE && styles.revokeBtn,
+                  (busy || (mode === MODE.REVOKE && selectedRegistry && !hasRevocationRegistry(selectedRegistry))) && styles.disabledBtn
+                ]}
+                disabled={busy || !selectedRegistryId || (mode === MODE.REVOKE && selectedRegistry && !hasRevocationRegistry(selectedRegistry))}
+                onPress={mode === MODE.REGISTER ? handleRegister : mode === MODE.REVOKE ? handleRevoke : handleVerify}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryText}>
+                    {mode === MODE.REGISTER
+                      ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain')
+                      : mode === MODE.REVOKE
+                        ? (pendingTxHash ? 'Waiting for confirmation...' : 'Revoke Asset')
+                        : 'Verify Hash'}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-          {mode === MODE.REGISTER && selectedRegistry && !selectedRegistry.can_register ? (
-            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can register.</Text>
-          ) : null}
+              {(mode === MODE.REGISTER || mode === MODE.REVOKE) && selectedRegistry && !selectedRegistry.can_register ? (
+                <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can {mode === MODE.REVOKE ? 'revoke' : 'register'}.</Text>
+              ) : null}
 
-          {mode !== MODE.PERMISSIONS && (
-            <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
-              <Text style={styles.secondaryText}>Clear</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
+                <Text style={styles.secondaryText}>Clear</Text>
+              </TouchableOpacity>
+            </>
           )}
 
           {mode === MODE.PERMISSIONS && selectedRegistry && selectedRegistry.user_role === 'owner' && (
              <View style={styles.block}>
-                <Text style={styles.label}>Invite Username</Text>
+                <Text style={[styles.label, { marginBottom: 6 }]}>Invite Username</Text>
                 <TextInput
                   style={styles.input}
                   value={inviteUsername}
@@ -1024,8 +1249,8 @@ export default function VerifyPage() {
                   placeholder="username"
                   placeholderTextColor="#666"
                 />
-
-                <Text style={styles.label}>Role</Text>
+                
+                <Text style={[styles.label, { marginBottom: 6 }]}>Role</Text>
                 <View style={styles.typeRow}>
                   {MEMBER_ROLES.map((role) => (
                     <TouchableOpacity
@@ -1048,7 +1273,7 @@ export default function VerifyPage() {
                   </Text>
                 ) : null}
 
-                <Text style={[styles.label, { marginTop: 20 }]}>Current Members</Text>
+                <Text style={[styles.label, { marginTop: 20, marginBottom: 6 }]}>Current Members</Text>
                 {members.length === 0 ? (
                   <Text style={styles.emptyText}>No members added yet.</Text>
                 ) : (
@@ -1074,6 +1299,8 @@ export default function VerifyPage() {
               {result.txHash ? <Text style={styles.resultLine}>Tx: {short(result.txHash)}</Text> : null}
               {result.resourceUri ? <Text style={styles.resultLine}>URI: {result.resourceUri}</Text> : null}
               {result.signerRuleLabel ? <Text style={styles.resultLine}>Signer Rule: {result.signerRuleLabel}</Text> : null}
+              {result.revoked ? <Text style={[styles.resultLine, { color: '#b71c1c', fontWeight: '700' }]}>Status: REVOKED</Text> : null}
+              {result.revocationReason ? <Text style={styles.resultLine}>Revocation Reason: {getRevocationReasonLabel(result.revocationReason)}</Text> : null}
               {result.metadataJson ? <Text style={styles.resultLine}>Metadata: {JSON.stringify(result.metadataJson)}</Text> : null}
             </View>
           )}
@@ -1086,6 +1313,26 @@ export default function VerifyPage() {
           {fileHash && mode !== MODE.PERMISSIONS ? <Text style={styles.footerHint}>Last hash: {short(fileHash)}</Text> : null}
         </ScrollView>
       </SafeAreaView>
+
+      <Modal visible={infoModal.visible} transparent={true} animationType="fade">
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setInfoModal({ ...infoModal, visible: false })}
+        >
+          <View style={styles.infoModalContent}>
+            <Text style={styles.infoModalTitle}>{infoModal.title}</Text>
+            <Text style={styles.infoModalText}>{infoModal.text}</Text>
+            <TouchableOpacity 
+              style={styles.infoModalButton} 
+              onPress={() => setInfoModal({ ...infoModal, visible: false })}
+            >
+              <Text style={styles.infoModalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </View>
   );
 }
@@ -1095,13 +1342,15 @@ const styles = StyleSheet.create({
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1, paddingTop: 10 },
   content: { paddingHorizontal: 22, paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
-  title: { fontSize: 28, color: '#003262', fontWeight: '700', textAlign: 'center', marginVertical: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginVertical: 10 },
+  title: { fontSize: 28, color: '#003262', fontWeight: '700' },
   modeRow: { flexDirection: 'row', gap: 10, marginBottom: 14, justifyContent: 'center' },
   modeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   modeChipActive: { backgroundColor: '#7d8ec4' },
   modeText: { color: '#003262', fontWeight: '700' },
   block: { marginBottom: 12 },
-  label: { color: '#003262', fontWeight: '700', marginBottom: 6 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  label: { color: '#003262', fontWeight: '700' },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   typeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   typeChipActive: { backgroundColor: '#7d8ec4' },
@@ -1115,6 +1364,7 @@ const styles = StyleSheet.create({
   fileBtnText: { color: '#003262', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#003262', borderRadius: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.5)', marginBottom: 8, color: '#003262' },
   primaryBtn: { backgroundColor: '#003262', borderRadius: 20, paddingVertical: 13, alignItems: 'center', marginTop: 6 },
+  revokeBtn: { backgroundColor: '#b71c1c' },
   disabledBtn: { opacity: 0.6 },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   secondaryBtn: { alignItems: 'center', marginTop: 12 },
@@ -1150,5 +1400,53 @@ const styles = StyleSheet.create({
   },
   memberName: { color: '#003262', fontWeight: '600' },
   memberRole: { color: '#003262', fontWeight: '700' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 50, 98, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  infoModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#003262',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  infoModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#003262',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  infoModalText: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  infoModalButton: {
+    backgroundColor: '#003262',
+    borderRadius: 25,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  infoModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });
+
+
 
