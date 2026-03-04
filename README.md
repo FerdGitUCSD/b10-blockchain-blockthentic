@@ -4,8 +4,6 @@
 > Team: Snigdha Podugu · Fred Danese · Ryan Cheung · Jonathan Gu · Andres Riera Ortiz Parraga
 > Mentor: Prof. Rajesh Gupta
 
-**[Project Website](https://andresriera.github.io/DSC-180B-Capstone-Website-Presentation/) · [Full Technical Report](#) · [Project Poster](#)**
-
 ---
 
 ## Problem Description
