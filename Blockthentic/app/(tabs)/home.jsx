@@ -129,11 +129,9 @@ export default function HomePage() {
     setLoading(true);
     try {
       const [
-        { data: profileData },
-        { data: registryData },
-        { data: memberships },
-        { data: assignedData },
-        { data: registeredData },
+        { data: profileData, error: profileError },
+        { data: registryData, error: registryError },
+        { data: memberships, error: membershipsError },
       ] = await Promise.all([
         supabase
           .from('profiles')
@@ -143,40 +141,129 @@ export default function HomePage() {
         supabase
           .from('registries')
           .select('id, owner_id, name, template_type, chain, contract_address, config_hash, deployment_status, created_at, access_mode')
-          .not('contract_address', 'is', null)
-          .eq('deployment_status', 'deployed')
           .order('created_at', { ascending: false }),
         supabase
           .from('registry_memberships')
           .select('registry_id, role, status')
           .eq('user_id', user.id)
           .eq('status', 'active'),
-        supabase
+      ]);
+      if (profileError) {
+        console.error('Profile load error:', profileError.message || profileError);
+      }
+      if (registryError) {
+        console.error('Registry load error:', registryError.message || registryError);
+      }
+      if (membershipsError) {
+        console.error('Membership load error:', membershipsError.message || membershipsError);
+      }
+      const membershipMap = new Map((memberships || []).map((m) => [m.registry_id, m.role]));
+
+      // Load assigned assets with a fallback if `status` column/query fails.
+      let assignedRows = [];
+      {
+        const { data, error } = await supabase
           .from('registry_records')
-          .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, owner_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username')
+          .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, owner_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, status')
           .eq('assigned_user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(30),
-        supabase
+          .limit(30);
+
+        if (error) {
+          const { data: fallback, error: fallbackErr } = await supabase
+            .from('registry_records')
+            .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, owner_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username')
+            .eq('assigned_user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(30);
+          if (fallbackErr) {
+            console.error('Assigned assets load error:', fallbackErr.message || fallbackErr);
+          }
+          assignedRows = fallback || [];
+        } else {
+          assignedRows = data || [];
+        }
+      }
+
+      // Load registered assets with a fallback if `status` column/query fails.
+      let registeredRows = [];
+      {
+        const { data, error } = await supabase
           .from('registry_records')
-          .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, owner_id')
+          .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, owner_id, status')
           .or(`registered_by_user_id.eq.${user.id},owner_id.eq.${user.id}`)
           .order('created_at', { ascending: false })
-          .limit(30),
-      ]);
+          .limit(30);
 
-      const membershipMap = new Map((memberships || []).map((m) => [m.registry_id, m.role]));
+        if (error) {
+          const { data: fallback, error: fallbackErr } = await supabase
+            .from('registry_records')
+            .select('id, file_name, resource_uri, tx_hash, created_at, registry_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, owner_id')
+            .or(`registered_by_user_id.eq.${user.id},owner_id.eq.${user.id}`)
+            .order('created_at', { ascending: false })
+            .limit(30);
+          if (fallbackErr) {
+            console.error('Registered assets load error:', fallbackErr.message || fallbackErr);
+          }
+          registeredRows = fallback || [];
+        } else {
+          registeredRows = data || [];
+        }
+      }
+
+
+      // Load revoked history rows for registrant view.
+      let revokedHistoryRows = [];
+      {
+        const { data, error } = await supabase
+          .from('registry_revoked_records')
+          .select('id, file_name, created_at, registry_id, owner_id, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, revoked_tx_hash, revoke_reason, revoke_reason_label, revoked_at, doc_hash')
+          .or(`registered_by_user_id.eq.${user.id},owner_id.eq.${user.id}`)
+          .order('revoked_at', { ascending: false })
+          .limit(30);
+
+        if (error) {
+          console.error('Revoked history load error:', error.message || error);
+          revokedHistoryRows = [];
+        } else {
+          revokedHistoryRows = (data || []).map((r) => ({
+            id: `revoked-${r.id}`,
+            file_name: r.file_name,
+            resource_uri: null,
+            tx_hash: r.revoked_tx_hash,
+            created_at: r.revoked_at || r.created_at,
+            registry_id: r.registry_id,
+            owner_id: r.owner_id,
+            assigned_user_id: r.assigned_user_id,
+            assigned_username: r.assigned_username,
+            registered_by_user_id: r.registered_by_user_id,
+            registered_by_username: r.registered_by_username,
+            status: 'revoked',
+            revocation_reason: r.revoke_reason,
+            revocation_reason_label: r.revoke_reason_label,
+            doc_hash: r.doc_hash,
+          }));
+        }
+      }
+      const relatedRegistryIds = new Set(
+        [...(assignedRows || []), ...(registeredRows || []), ...(revokedHistoryRows || [])]
+          .map((row) => row?.registry_id)
+          .filter(Boolean)
+      );
+
       const visibleRegistries = (registryData || []).reduce((acc, registry) => {
         const role = membershipMap.get(registry.id) || null;
-        const allowed = registry.owner_id === user.id || Boolean(role) || registry.access_mode === 'public_read';
-        if (allowed) acc.push({ ...registry, role });
+        const allowedByRole = registry.owner_id === user.id || Boolean(role) || registry.access_mode === 'public_read';
+        const allowedByAssetLink = relatedRegistryIds.has(registry.id);
+        if (allowedByRole || allowedByAssetLink) acc.push({ ...registry, role });
         return acc;
       }, []);
 
       setProfile(profileData || null);
       setContracts(visibleRegistries);
-      setAssignedToMe(Array.isArray(assignedData) ? assignedData : []);
-      setRegisteredByMe(Array.isArray(registeredData) ? registeredData : []);
+      setAssignedToMe(Array.isArray(assignedRows) ? assignedRows.filter((r) => r?.status !== 'revoked') : []);
+      const mergedRegistered = [...(registeredRows || []), ...(revokedHistoryRows || [])];
+      setRegisteredByMe(Array.isArray(mergedRegistered) ? mergedRegistered : []);
     } catch (err) {
       console.error('Home data load error:', err?.message ?? err);
     } finally {
@@ -337,8 +424,10 @@ export default function HomePage() {
               <Text style={styles.cardMeta}>Registered By: {asset.registered_by_username || 'n/a'}</Text>
               <Text style={styles.cardMeta}>Uploaded: {asset.created_at ? new Date(asset.created_at).toLocaleString() : 'Unknown'}</Text>
               <Text style={styles.cardMeta}>Tx: {short(asset.tx_hash)}</Text>
+              <Text style={[styles.cardMeta, asset.status === 'revoked' ? styles.revokedText : null]}>Status: {asset.status || 'active'}</Text>
+              {asset.status === 'revoked' ? <Text style={[styles.cardMeta, styles.revokedText]}>Reason: {asset.revocation_reason_label || 'Revoked'}</Text> : null}
             </View>
-            {asset.resource_uri ? (
+            {asset.resource_uri && asset.status !== 'revoked' ? (
               <TouchableOpacity onPress={() => openAsset(asset)} style={styles.explorerButton}>
                 <Text style={styles.explorerButtonText}>Open Asset</Text>
               </TouchableOpacity>
@@ -616,6 +705,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   }
 });
+
+
+
+
+
+
+
+
+
+
 
 
 

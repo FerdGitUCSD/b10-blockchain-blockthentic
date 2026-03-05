@@ -416,7 +416,7 @@ export default function CreatePage() {
     <ScrollView
       style={styles.scrollContainer}
       contentContainerStyle={[styles.stepContent, styles.templateScrollContent]}
-      showsVerticalScrollIndicator={Platform.OS !== 'web'}
+      showsVerticalScrollIndicator
     >
       <Text style={styles.stepTitle}>Select Template</Text>
       <Text style={styles.stepSubtitle}>Choose a registry template and deployment chain</Text>
@@ -462,7 +462,7 @@ export default function CreatePage() {
   );
 
   const renderConfigure = () => (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollInner} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollInner} showsVerticalScrollIndicator>
       <Text style={styles.stepTitle}>Configure</Text>
       <Text style={styles.stepSubtitle}>Define template configuration before deployment</Text>
 
@@ -603,7 +603,7 @@ export default function CreatePage() {
   );
 
   const renderReview = () => (
-    <View style={styles.stepContent}>
+    <ScrollView style={styles.scrollContainer} contentContainerStyle={[styles.scrollInner, styles.reviewScrollInner]} showsVerticalScrollIndicator>
       <Text style={styles.stepTitle}>Review & Deploy</Text>
       <Text style={styles.stepSubtitle}>Deploy directly from connected wallet</Text>
 
@@ -625,7 +625,7 @@ export default function CreatePage() {
         <Text style={styles.walletLabel}>Wallet</Text>
         <Text style={styles.walletAddress}>{isConnected ? address : 'No wallet connected'}</Text>
       </View>
-    </View>
+    </ScrollView>
   );
 
   const renderSuccess = () => (
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingTop: 10 },
   headerText: { fontSize: 26, fontWeight: '400', color: '#003262', textAlign: 'center', marginTop: 10, marginBottom: 10 },
   topSection: { alignItems: 'center' },
-  mainContentWrapper: { flex: 1, width: '100%', paddingHorizontal: 25 },
+  mainContentWrapper: { flex: 1, minHeight: 0, width: '100%', paddingHorizontal: 25 },
   progressContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   stepCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#003262' },
   stepCircleActive: { borderWidth: 2 },
@@ -729,6 +729,7 @@ const styles = StyleSheet.create({
   boxDescription: { fontSize: 13, color: '#003262' },
   scrollContainer: { flex: 1, width: '100%' },
   scrollInner: { paddingBottom: 30 },
+  reviewScrollInner: { paddingBottom: 56 },
   inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6, alignSelf: 'flex-start' },
   inputLabel: { fontSize: 16, fontWeight: '700', color: '#003262' },
   input: { width: '100%', backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 18, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#003262', marginBottom: 10, color: '#003262' },
@@ -797,4 +798,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   }
 });
+
 

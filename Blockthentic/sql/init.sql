@@ -181,6 +181,47 @@ for insert with check (
   )
 );
 
+
+drop policy if exists "Registry records are updatable by owner or admin" on registry_records;
+create policy "Registry records are updatable by owner or admin" on registry_records
+for update using (
+  auth.uid() = owner_id
+  or exists (
+    select 1
+    from registries r
+    where r.id = registry_records.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+) with check (
+  auth.uid() = owner_id
+  or exists (
+    select 1
+    from registries r
+    where r.id = registry_records.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);
+
+drop policy if exists "Registry records are deletable by owner or admin" on registry_records;
+create policy "Registry records are deletable by owner or admin" on registry_records
+for delete using (
+  auth.uid() = owner_id
+  or exists (
+    select 1
+    from registries r
+    where r.id = registry_records.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);
 drop policy if exists "Registry memberships are viewable by members and owner" on registry_memberships;
 create policy "Registry memberships are viewable by members and owner" on registry_memberships
 for select using (
@@ -208,3 +249,185 @@ for delete using (
   public.is_registry_owner(registry_id, auth.uid())
 );
 
+
+create table if not exists registry_registration_requests (
+  id uuid primary key default gen_random_uuid(),
+  registry_id uuid not null references registries(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete cascade,
+  template_type text not null,
+  doc_hash text not null,
+  resource_uri text,
+  file_name text,
+  assigned_user_id uuid references auth.users(id) on delete set null,
+  assigned_username text,
+  signer_rule_label text,
+  metadata_json jsonb,
+  proposed_by_user_id uuid references auth.users(id) on delete set null,
+  proposed_by_username text,
+  required_approvals integer not null default 1,
+  approval_count integer not null default 0,
+  finalized_tx_hash text,
+  status text not null default 'pending' check (status in ('pending', 'finalized', 'cancelled', 'rejected')),
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists registry_request_approvals (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references registry_registration_requests(id) on delete cascade,
+  approver_user_id uuid not null references auth.users(id) on delete cascade,
+  approver_username text,
+  created_at timestamp with time zone default now(),
+  unique (request_id, approver_user_id)
+);
+
+create index if not exists idx_reg_requests_registry on registry_registration_requests(registry_id);
+create index if not exists idx_reg_requests_status on registry_registration_requests(status);
+create index if not exists idx_reg_requests_hash on registry_registration_requests(doc_hash);
+create index if not exists idx_reg_request_approvals_request on registry_request_approvals(request_id);
+create index if not exists idx_reg_request_approvals_user on registry_request_approvals(approver_user_id);
+
+alter table registry_registration_requests enable row level security;
+alter table registry_request_approvals enable row level security;
+
+drop policy if exists "Registry requests viewable by authorized users" on registry_registration_requests;
+create policy "Registry requests viewable by authorized users" on registry_registration_requests
+for select using (
+  auth.uid() = owner_id
+  or auth.uid() = assigned_user_id
+  or auth.uid() = proposed_by_user_id
+  or exists (
+    select 1 from registries r
+    where r.id = registry_registration_requests.registry_id
+      and (
+        r.access_mode = 'public_read'
+        or r.owner_id = auth.uid()
+        or public.is_registry_member(r.id, auth.uid())
+      )
+  )
+);
+
+drop policy if exists "Registry requests insertable by owner or admin" on registry_registration_requests;
+create policy "Registry requests insertable by owner or admin" on registry_registration_requests
+for insert with check (
+  auth.uid() = proposed_by_user_id
+  and exists (
+    select 1 from registries r
+    where r.id = registry_registration_requests.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);
+
+drop policy if exists "Registry requests updatable by owner or admin" on registry_registration_requests;
+create policy "Registry requests updatable by owner or admin" on registry_registration_requests
+for update using (
+  exists (
+    select 1 from registries r
+    where r.id = registry_registration_requests.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+) with check (
+  exists (
+    select 1 from registries r
+    where r.id = registry_registration_requests.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);
+
+drop policy if exists "Registry request approvals viewable by authorized users" on registry_request_approvals;
+create policy "Registry request approvals viewable by authorized users" on registry_request_approvals
+for select using (
+  exists (
+    select 1
+    from registry_registration_requests rr
+    join registries r on r.id = rr.registry_id
+    where rr.id = registry_request_approvals.request_id
+      and (
+        r.access_mode = 'public_read'
+        or r.owner_id = auth.uid()
+        or public.is_registry_member(r.id, auth.uid())
+      )
+  )
+);
+
+drop policy if exists "Registry request approvals insertable by owner or admin" on registry_request_approvals;
+create policy "Registry request approvals insertable by owner or admin" on registry_request_approvals
+for insert with check (
+  auth.uid() = approver_user_id
+  and exists (
+    select 1
+    from registry_registration_requests rr
+    join registries r on r.id = rr.registry_id
+    where rr.id = registry_request_approvals.request_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);
+
+
+create table if not exists registry_revoked_records (
+  id uuid primary key default gen_random_uuid(),
+  registry_id uuid not null references registries(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete cascade,
+  template_type text not null,
+  doc_hash text not null,
+  file_name text,
+  assigned_user_id uuid references auth.users(id) on delete set null,
+  assigned_username text,
+  registered_by_user_id uuid references auth.users(id) on delete set null,
+  registered_by_username text,
+  revoked_tx_hash text,
+  revoke_reason integer,
+  revoke_reason_label text,
+  revoked_at timestamp with time zone default now(),
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_revoked_registry on registry_revoked_records(registry_id);
+create index if not exists idx_revoked_registered_by on registry_revoked_records(registered_by_user_id);
+create index if not exists idx_revoked_owner on registry_revoked_records(owner_id);
+create index if not exists idx_revoked_hash on registry_revoked_records(doc_hash);
+
+alter table registry_revoked_records enable row level security;
+
+drop policy if exists "Revoked records are viewable by authorized users" on registry_revoked_records;
+create policy "Revoked records are viewable by authorized users" on registry_revoked_records
+for select using (
+  auth.uid() = owner_id
+  or auth.uid() = assigned_user_id
+  or auth.uid() = registered_by_user_id
+  or exists (
+    select 1 from registries r
+    where r.id = registry_revoked_records.registry_id
+      and (
+        r.access_mode = 'public_read'
+        or r.owner_id = auth.uid()
+        or public.is_registry_member(r.id, auth.uid())
+      )
+  )
+);
+
+drop policy if exists "Revoked records are insertable by owner or admin" on registry_revoked_records;
+create policy "Revoked records are insertable by owner or admin" on registry_revoked_records
+for insert with check (
+  auth.uid() = registered_by_user_id
+  and exists (
+    select 1 from registries r
+    where r.id = registry_revoked_records.registry_id
+      and (
+        r.owner_id = auth.uid()
+        or public.registry_member_role(r.id, auth.uid()) = 'admin'
+      )
+  )
+);

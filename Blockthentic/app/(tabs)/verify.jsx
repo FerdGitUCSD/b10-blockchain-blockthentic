@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -270,13 +270,10 @@ function getMetadataFields(record) {
 }
 
 function canUseSignerRule(rule, userRole) {
-  const normalized = String(rule || '').toLowerCase();
+  const normalized = String(rule || '').trim();
   if (!normalized) return false;
-  if (userRole === 'owner') return true;
-  if (userRole === 'admin') {
-    return normalized === 'admin' || normalized.endsWith('_admin') || normalized.includes('admin');
-  }
-  return false;
+  // Signer rules are labels/categories. Permission is decided by backend role.
+  return userRole === 'owner' || userRole === 'admin';
 }
 
 function isFeeCapError(error) {
@@ -354,6 +351,7 @@ export default function VerifyPage() {
   const [selectedRegistryId, setSelectedRegistryId] = useState(null);
   const [result, setResult] = useState(null);
   const [selectedRevokeReason, setSelectedRevokeReason] = useState(1);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   const [members, setMembers] = useState([]);
   const [inviteUsername, setInviteUsername] = useState('');
@@ -375,7 +373,7 @@ export default function VerifyPage() {
       const [{ data: allRegistries, error: regErr }, { data: memberships, error: memberErr }] = await Promise.all([
         supabase
           .from('registries')
-          .select('id,owner_id,name,template_type,template_config,contract_address,revocation_address,chain,access_mode,deployment_status,created_at')
+          .select('id,owner_id,name,template_type,template_config,contract_address,revocation_address,chain,access_mode,required_approvals,deployment_status,created_at')
           .not('contract_address', 'is', null)
           .eq('deployment_status', 'deployed')
           .order('created_at', { ascending: false }),
@@ -413,6 +411,41 @@ export default function VerifyPage() {
       mounted = false;
     };
   }, [user]);
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPendingRequests() {
+      if (!user || !supabase || mode !== MODE.REGISTER || !selectedRegistryId) {
+        if (mounted) setPendingRequests([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('registry_registration_requests')
+        .select('id, registry_id, doc_hash, resource_uri, file_name, assigned_user_id, assigned_username, signer_rule_label, metadata_json, required_approvals, approval_count, status, created_at')
+        .eq('registry_id', selectedRegistryId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (!mounted) return;
+      if (error) {
+        if (/relation .* does not exist/i.test(error.message || '')) {
+          setPendingRequests([]);
+          return;
+        }
+        console.error('Failed to load pending requests:', error.message);
+        return;
+      }
+
+      setPendingRequests(data || []);
+    }
+
+    loadPendingRequests();
+    return () => {
+      mounted = false;
+    };
+  }, [user, mode, selectedRegistryId, pendingTxHash, busy]);
 
   const filteredRegistries = useMemo(() => {
     return registries.filter((r) => matchesType(r.template_type, selectedType));
@@ -626,6 +659,96 @@ export default function VerifyPage() {
 
     if (error) throw error;
   };
+  const countApprovals = async (requestId) => {
+    const { count, error } = await supabase
+      .from('registry_request_approvals')
+      .select('*', { count: 'exact', head: true })
+      .eq('request_id', requestId);
+    if (error) throw error;
+    return count || 0;
+  };
+
+  const approveAndMaybeFinalizeRequest = async (request) => {
+    const { data: actorProfile } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle();
+    const actorUsername = actorProfile?.username || user.email?.split('@')[0] || 'unknown';
+
+    const { error: approvalError } = await supabase.from('registry_request_approvals').upsert(
+      {
+        request_id: request.id,
+        approver_user_id: user.id,
+        approver_username: actorUsername,
+      },
+      { onConflict: 'request_id,approver_user_id', ignoreDuplicates: true }
+    );
+    if (approvalError) throw approvalError;
+
+    const approvalCount = await countApprovals(request.id);
+    const requiredApprovals = Math.max(1, Number(request.required_approvals || selectedRegistry?.required_approvals || 1));
+
+    await supabase
+      .from('registry_registration_requests')
+      .update({ approval_count: approvalCount, updated_at: new Date().toISOString() })
+      .eq('id', request.id)
+      .eq('status', 'pending');
+
+    if (approvalCount < requiredApprovals) {
+      setResult({
+        ok: true,
+        mode: MODE.REGISTER,
+        hash: request.doc_hash,
+        message: 'Approval recorded (' + approvalCount + '/' + requiredApprovals + '). Waiting for additional signers.',
+      });
+      return;
+    }
+
+    const txHash = await runWithFeeRetry(async () => {
+      const hashTx = await writeContractAsync({
+        address: selectedRegistry.contract_address,
+        abi: REGISTER_ABI[selectedType],
+        functionName: REGISTER_FUNCTION[selectedType],
+        args: [request.doc_hash, request.doc_hash, request.resource_uri || ''],
+      });
+      setPendingTxHash(hashTx);
+      return hashTx;
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    const assignedUser = {
+      id: request.assigned_user_id || user.id,
+      username: request.assigned_username || actorUsername,
+    };
+
+    await persistRecord({
+      hash: request.doc_hash,
+      uri: request.resource_uri || '',
+      txHash,
+      assignedUser,
+      registeredByUsername: actorUsername,
+      resolvedAssetName: request.file_name || 'asset',
+      signerRuleLabel: request.signer_rule_label || null,
+      metadataJson: request.metadata_json || null,
+    });
+
+    await supabase
+      .from('registry_registration_requests')
+      .update({
+        status: 'finalized',
+        approval_count: approvalCount,
+        finalized_tx_hash: txHash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', request.id)
+      .eq('status', 'pending');
+
+    setResult({
+      ok: true,
+      mode: MODE.REGISTER,
+      hash: request.doc_hash,
+      txHash,
+      message: 'Request finalized on-chain (' + approvalCount + '/' + requiredApprovals + ' approvals).',
+    });
+  };
 
   const uploadAssetIfNeeded = async () => {
     const explicitUri = resourceUri.trim();
@@ -665,6 +788,54 @@ export default function VerifyPage() {
     return `supabase://${ASSET_BUCKET}/${path}`;
   };
 
+  const parseSupabaseUri = (uri) => {
+    if (!uri || !uri.startsWith('supabase://')) return null;
+    const rawValue = uri.replace('supabase://', '');
+    const slash = rawValue.indexOf('/');
+    if (slash <= 0) return null;
+    return { bucket: rawValue.slice(0, slash), path: rawValue.slice(slash + 1) };
+  };
+
+  const deleteStoredAssetIfPossible = async (record) => {
+    const uri = record?.resource_uri || '';
+    if (!uri) return;
+
+    const parsed = parseSupabaseUri(uri);
+    if (parsed) {
+      const { error } = await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+      if (error) throw error;
+      return;
+    }
+
+    const isHttp = /^https?:\/\//i.test(uri);
+    const isIpfs = uri.startsWith('ipfs://');
+    if (isHttp || isIpfs) return;
+
+    const filename = uri;
+    const registryId = record?.registry_id || selectedRegistry?.id;
+    if (!filename || !registryId) return;
+
+    const candidatePrefixes = [
+      `${user?.id || ''}/${registryId}`,
+      `${record?.owner_id || ''}/${registryId}`,
+      `${selectedRegistry?.owner_id || ''}/${registryId}`,
+    ].filter(Boolean);
+
+    for (const prefix of candidatePrefixes) {
+      const { data: objects, error: listErr } = await supabase.storage.from(ASSET_BUCKET).list(prefix, { limit: 100 });
+      if (listErr) continue;
+
+      const exact = (objects || []).find((f) => f?.name === filename);
+      const suffixed = (objects || []).find((f) => f?.name?.endsWith(`-${filename}`));
+      const matched = exact || suffixed;
+      if (!matched) continue;
+
+      const removePath = `${prefix}/${matched.name}`;
+      const { error: removeErr } = await supabase.storage.from(ASSET_BUCKET).remove([removePath]);
+      if (removeErr) throw removeErr;
+      return;
+    }
+  };
   const handleRegister = async () => {
     if (!selectedRegistry?.contract_address) {
       setResult({ ok: false, mode: MODE.REGISTER, message: 'Select a deployed registry.' });
@@ -729,36 +900,88 @@ export default function VerifyPage() {
       setFileHash(hash);
 
       const uri = await uploadAssetIfNeeded();
-      const txHash = await runWithFeeRetry(async () => {
-        const hashTx = await writeContractAsync({
-          address: selectedRegistry.contract_address,
-          abi: REGISTER_ABI[selectedType],
-          functionName: REGISTER_FUNCTION[selectedType],
-          args: [hash, hash, uri],
+      const requiredApprovals = Math.max(1, Number(selectedRegistry?.required_approvals || 1));
+
+      if (requiredApprovals > 1) {
+        const requestPayload = {
+          registry_id: selectedRegistry.id,
+          owner_id: selectedRegistry.owner_id,
+          template_type: selectedType,
+          doc_hash: hash,
+          resource_uri: uri,
+          file_name: resolvedAssetName,
+          assigned_user_id: assignedUser.id,
+          assigned_username: assignedUser.username,
+          signer_rule_label: selectedSignerRule || null,
+          metadata_json: Object.keys(metadataJson).length ? metadataJson : null,
+          proposed_by_user_id: user.id,
+          proposed_by_username: actorProfile?.username || user.email?.split('@')[0] || 'unknown',
+          required_approvals: requiredApprovals,
+          approval_count: 0,
+          status: 'pending',
+          updated_at: new Date().toISOString(),
+        };
+
+        let request = null;
+        const existingQuery = await supabase
+          .from('registry_registration_requests')
+          .select('id, registry_id, doc_hash, resource_uri, file_name, assigned_user_id, assigned_username, signer_rule_label, metadata_json, required_approvals, approval_count, status, created_at')
+          .eq('registry_id', selectedRegistry.id)
+          .eq('doc_hash', hash)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingQuery.error && !/relation .* does not exist/i.test(existingQuery.error.message || '')) {
+          throw existingQuery.error;
+        }
+
+        if (existingQuery.data) {
+          request = existingQuery.data;
+        } else {
+          const insertReq = await supabase
+            .from('registry_registration_requests')
+            .insert(requestPayload)
+            .select('id, registry_id, doc_hash, resource_uri, file_name, assigned_user_id, assigned_username, signer_rule_label, metadata_json, required_approvals, approval_count, status, created_at')
+            .single();
+          if (insertReq.error) throw insertReq.error;
+          request = insertReq.data;
+        }
+
+        await approveAndMaybeFinalizeRequest(request);
+      } else {
+        const txHash = await runWithFeeRetry(async () => {
+          const hashTx = await writeContractAsync({
+            address: selectedRegistry.contract_address,
+            abi: REGISTER_ABI[selectedType],
+            functionName: REGISTER_FUNCTION[selectedType],
+            args: [hash, hash, uri],
+          });
+          setPendingTxHash(hashTx);
+          return hashTx;
         });
-        setPendingTxHash(hashTx);
-        return hashTx;
-      });
 
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
-      await persistRecord({
-        hash,
-        uri,
-        txHash,
-        assignedUser,
-        registeredByUsername: actorProfile?.username || user.email?.split('@')[0] || 'unknown',
-        resolvedAssetName,
-        signerRuleLabel: selectedSignerRule || null,
-        metadataJson: Object.keys(metadataJson).length ? metadataJson : null,
-      });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        await persistRecord({
+          hash,
+          uri,
+          txHash,
+          assignedUser,
+          registeredByUsername: actorProfile?.username || user.email?.split('@')[0] || 'unknown',
+          resolvedAssetName,
+          signerRuleLabel: selectedSignerRule || null,
+          metadataJson: Object.keys(metadataJson).length ? metadataJson : null,
+        });
 
-      setResult({
-        ok: true,
-        mode: MODE.REGISTER,
-        hash,
-        txHash,
-        message: `Record registered on-chain and assigned to ${assignedUser.username}.`,
-      });
+        setResult({
+          ok: true,
+          mode: MODE.REGISTER,
+          hash,
+          txHash,
+          message: `Record registered on-chain and assigned to ${assignedUser.username}.`,
+        });
+      }
     } catch (err) {
       setResult({ ok: false, mode: MODE.REGISTER, message: formatActionError(err, 'Registration failed') });
     } finally {
@@ -938,12 +1161,64 @@ export default function VerifyPage() {
 
       await publicClient.waitForTransactionReceipt({ hash: txHash });
 
+      const { data: recordsToDelete, error: fetchRecordErr } = await supabase
+        .from('registry_records')
+        .select('id, registry_id, owner_id, resource_uri, file_name, assigned_user_id, assigned_username, registered_by_user_id, registered_by_username, template_type')
+        .eq('registry_id', selectedRegistry.id)
+        .or(`doc_hash.eq.${hash},doc_id.eq.${hash}`);
+      if (fetchRecordErr) throw fetchRecordErr;
+
+      const cleanupErrors = [];
+
+      if ((recordsToDelete || []).length > 0) {
+        const revokedRows = (recordsToDelete || []).map((r) => ({
+          registry_id: r.registry_id || selectedRegistry.id,
+          owner_id: r.owner_id || selectedRegistry.owner_id || user.id,
+          template_type: r.template_type || selectedRegistry.template_type || selectedType,
+          doc_hash: hash,
+          file_name: r.file_name || file?.name || assetName || 'asset',
+          assigned_user_id: r.assigned_user_id || null,
+          assigned_username: r.assigned_username || null,
+          registered_by_user_id: r.registered_by_user_id || user.id,
+          registered_by_username: r.registered_by_username || (user.email?.split('@')[0] || 'unknown'),
+          revoked_tx_hash: txHash,
+          revoke_reason: Number(selectedRevokeReason),
+          revoke_reason_label: getRevocationReasonLabel(selectedRevokeReason),
+          revoked_at: new Date().toISOString(),
+        }));
+
+        const { error: revokedInsertErr } = await supabase.from('registry_revoked_records').insert(revokedRows);
+        if (revokedInsertErr) {
+          cleanupErrors.push(`revoked-log:${revokedInsertErr?.message || revokedInsertErr}`);
+        }
+      }
+
+      for (const record of recordsToDelete || []) {
+        try {
+          await deleteStoredAssetIfPossible(record);
+        } catch (storageErr) {
+          cleanupErrors.push(`storage:${storageErr?.message || storageErr}`);
+        }
+      }
+
+      if ((recordsToDelete || []).length > 0) {
+        const recordIds = recordsToDelete.map((r) => r.id).filter(Boolean);
+
+        const { error: deleteRecordsErr } = await supabase.from('registry_records').delete().in('id', recordIds);
+        if (deleteRecordsErr) {
+          cleanupErrors.push(`db-delete:${deleteRecordsErr?.message || deleteRecordsErr}`);
+        }
+      }
+
       setResult({
         ok: true,
         mode: MODE.REVOKE,
         hash,
         txHash,
-        message: `Asset revoked successfully (reason: ${getRevocationReasonLabel(selectedRevokeReason)}).`,
+        message:
+          cleanupErrors.length === 0
+            ? `Asset revoked and removed from live records (reason: ${getRevocationReasonLabel(selectedRevokeReason)}).`
+            : `Asset revoked on-chain (reason: ${getRevocationReasonLabel(selectedRevokeReason)}), but some cleanup steps failed: ${cleanupErrors.join(' | ')}`,
       });
     } catch (err) {
       setResult({ ok: false, mode: MODE.REVOKE, message: formatActionError(err, 'Revocation failed') });
@@ -952,7 +1227,6 @@ export default function VerifyPage() {
       setBusy(false);
     }
   };
-
   const inviteMember = async () => {
     setInviteMessage({ type: '', text: '' });
 
@@ -1215,6 +1489,39 @@ Permissions: Manage who can access or modify this registry.
             </View>
           )}
 
+          {mode === MODE.REGISTER && Number(selectedRegistry?.required_approvals || 1) > 1 && pendingRequests.length > 0 ? (
+            <View style={styles.block}>
+              <Text style={[styles.label, { marginBottom: 6 }]}>Pending Approval Requests</Text>
+              {pendingRequests.map((req) => (
+                <View key={req.id} style={styles.registryRow}>
+                  <Text style={styles.registryName}>{req.file_name || 'asset'}</Text>
+                  <Text style={styles.registryMeta}>hash: {short(req.doc_hash)}</Text>
+                  <Text style={styles.registryMeta}>
+                    approvals: {Number(req.approval_count || 0)}/{Number(req.required_approvals || 1)}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.typeChip, { alignSelf: 'flex-start', marginTop: 8 }]}
+                    onPress={async () => {
+                      try {
+                        setBusy(true);
+                        ensureWalletOnRegistryChain();
+                        await approveAndMaybeFinalizeRequest(req);
+                      } catch (err) {
+                        setResult({ ok: false, mode: MODE.REGISTER, message: formatActionError(err, 'Approval failed') });
+                      } finally {
+                        setPendingTxHash(null);
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                  >
+                    <Text style={styles.typeText}>Approve / Finalize</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {mode !== MODE.PERMISSIONS && (
             <>
               <TouchableOpacity
@@ -1461,6 +1768,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   }
 });
+
+
+
+
+
+
+
+
 
 
 
