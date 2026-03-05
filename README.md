@@ -23,36 +23,119 @@ Digital documents, datasets, and media files are increasingly difficult to trust
 
 ```
 b10-blockchain-blockthentic/
-├── Blockthentic/
-│   ├── app/                        # React Native (Expo) mobile dApp
-│   │   ├── index.jsx               # App entry point
-│   │   ├── create.jsx              # Registry creation screen
-│   │   ├── verify.jsx              # File verification screen
-│   │   ├── profile.jsx             # Issuer profile & asset management
-│   │   ├── home.jsx                # Landing / dashboard
-│   │   └── js/
-│   │       └── config.js           # Contract addresses & Supabase credentials (update after deploy)
-│   └── onchain/                    # Hardhat smart contract workspace
-│       ├── contracts/
-│       │   └── onchain/
-│       │       └── contracts/
-│       │           ├── RegistryFactory.sol             # Deploys registry pairs on demand
-│       │           ├── DocumentRegistryTemplate.sol    # Document asset registration & verification
-│       │           ├── DatasetRegistryTemplate.sol     # Dataset asset registration & verification
-│       │           ├── MediaRegistryTemplate.sol       # Image/video asset registration & verification
-│       │           ├── RevocationRegistry.sol          # Lifecycle state management (Active/Revoked/Superseded)
-│       │           └── IRevocationRegistry.sol         # Revocation interface
-│       ├── scripts/
-│       │   ├── deploy.js           # Local deployment script
-│       │   └── deploy-sepolia.js   # Sepolia testnet deployment script
-│       ├── test/                   # Hardhat test suite
-│       ├── hardhat.config.js       # Network configuration (local, Sepolia, Arbitrum, Polygon)
-│       └── .env.example            # Template for required environment variables
-├── figures/                        # Architecture diagrams and report assets (Figures 1–5)
-├── .github/
-│   └── workflows/                  # GitHub Actions: auto-deploys frontend/ on push to main
-├── package.json                    # Root dependencies with versions
-└── README.md                       # This file
+├── Blockthentic/                         # Expo React Native mobile dApp
+│   ├── app/                              # App routes (Expo Router)
+│   │   ├── _layout.jsx                   # Root layout configuration
+│   │   ├── auth.jsx                      # Authentication screen
+│   │   ├── index.jsx                     # Entry screen
+│   │   └── (tabs)/                       # Tab-based navigation screens
+│   │       ├── _layout.jsx               # Tabs layout wrapper
+│   │       ├── create.jsx                # Registry creation screen
+│   │       ├── home.jsx                  # Dashboard / landing screen
+│   │       ├── profile.jsx               # Issuer profile & asset management
+│   │       └── verify.jsx                # File verification screen
+│   │
+│   ├── components/
+│   │   └── WebNavBar.jsx                 # Web navigation bar component
+│   │
+│   ├── config/                           # App configuration utilities
+│   │   ├── AppKitConfig.native.js
+│   │   ├── AppKitConfig.web.js
+│   │   ├── StorageUtil.js
+│   │   ├── factoryConfig.js              # Factory contract configuration
+│   │   ├── supabaseClient.js             # Supabase client setup
+│   │   └── templateConfig.js             # Registry template configuration
+│   │
+│   ├── context/                          # Global state management
+│   │   ├── AuthContext.jsx
+│   │   └── WalletContext.jsx
+│   │
+│   ├── assets/
+│   │   └── images/                       # App images and icons
+│   │
+│   ├── sql/
+│   │   └── init.sql                      # Supabase database initialization
+│   │
+│   ├── onchain/                          # Hardhat workspace (Factory-based system)
+│   │   ├── contracts/
+│   │   │   ├── RegistryFactory.sol
+│   │   │   ├── DocumentRegistryTemplate.sol
+│   │   │   ├── DatasetRegistryTemplate.sol
+│   │   │   ├── MediaRegistryTemplate.sol
+│   │   │   ├── RevocationRegistry.sol
+│   │   │   └── IRevocationRegistry.sol
+│   │   ├── scripts/
+│   │   │   └── deployFactory.js          # Factory deployment script
+│   │   ├── test/
+│   │   │   └── RegistryFactory.test.js
+│   │   ├── hardhat.config.js
+│   │   └── .env.example
+│   │
+│   ├── app.json
+│   ├── babel.config.js
+│   ├── metro.config.js
+│   ├── eslint.config.js
+│   ├── tsconfig.json
+│   └── README.md
+│
+├── contracts/                            # Standalone contract system (template-based deployment)
+│   ├── contracts/
+│   │   ├── DatasetVerificationRegistry.sol
+│   │   ├── DocumentVerificationRegistry.sol
+│   │   ├── RevocationRegistry.sol
+│   │   └── generated/                    # Auto-generated contract pairs
+│   │       ├── DatasetTestRevocation.sol
+│   │       ├── DatasetTestVerification.sol
+│   │       ├── ImageTestRevocation.sol
+│   │       ├── ImageTestVerification.sol
+│   │       ├── TestCompanyRevocation.sol
+│   │       └── TestCompanyVerification.sol
+│   │
+│   ├── templates/                        # Contract templates & generators
+│   │   ├── DatasetVerificationRegistryTemplate.sol
+│   │   ├── DocumentVerificationRegistryTemplate.sol
+│   │   ├── ImageVerificationRegistryTemplate.sol
+│   │   ├── RevocationRegistryTemplate.sol
+│   │   ├── generateDatasetContractPair.js
+│   │   ├── generateDocumentContractPair.js
+│   │   ├── generateImageContractPair.js
+│   │   └── *.json placeholder configs
+│   │
+│   ├── scripts/                          # Deployment scripts
+│   │   ├── deployDatasetContracts.js
+│   │   ├── deployDocumentContracts.js
+│   │   └── deployImageContracts.js
+│   │
+│   ├── test/
+│   │   ├── DatasetVerification.test.js
+│   │   ├── DocumentVerification.test.js
+│   │   └── ImageVerification.test.js
+│   │
+│   ├── hardhat.config.js
+│   └── .env.example
+│
+├── Website/                              # Static marketing/documentation website
+│   ├── index.html
+│   ├── about.html
+│   ├── contact.html
+│   ├── docs.html
+│   ├── team.html
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   └── main.js
+│   └── img/
+│       └── logo.png
+│
+├── assets/                               # Project diagrams & UI mockups
+│   ├── Contract 1.png
+│   ├── faq.png
+│   └── (additional UI/architecture images)
+│
+├── package.json                          # Root dependencies
+├── package-lock.json
+├── yarn.lock
+└── README.md
 ```
 
 ---
