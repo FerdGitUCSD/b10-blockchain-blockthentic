@@ -1050,7 +1050,15 @@ export default function VerifyPage() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={Platform.OS !== 'web'}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Registry Actions</Text>
-            <TouchableOpacity onPress={() => openInfo('Registry Actions', 'Register: Anchor a new file to the blockchain.\\n\\nVerify: Check if a file exists and is unaltered.\\n\\nRevoke: Invalidate a previously registered file.\\n\\nPermissions: Manage who can access or modify this registry.')}>
+            <TouchableOpacity onPress={() => openInfo('Registry Actions', `
+Register: Anchor a new file to the blockchain.
+
+Verify: Check if a file exists and is unaltered.
+
+Revoke: Invalidate a previously registered file.
+
+Permissions: Manage who can access or modify this registry.
+`)}>
               <Ionicons name="information-circle-outline" size={24} color="#003262" />
             </TouchableOpacity>
           </View>
