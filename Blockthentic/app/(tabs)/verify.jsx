@@ -1664,7 +1664,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingTop: 10 },
   content: { paddingHorizontal: 22, paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginVertical: 10 },
-  title: { fontSize: 28, color: '#003262', fontWeight: '700' },
+  title: { fontSize: 32, color: '#003262', fontWeight: '700', paddingBottom: 10 },
   modeRow: { flexDirection: 'row', gap: 10, marginBottom: 14, justifyContent: 'center' },
   modeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   modeChipActive: { backgroundColor: '#7d8ec4' },

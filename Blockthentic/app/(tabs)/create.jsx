@@ -413,11 +413,7 @@ export default function CreatePage() {
   };
 
   const renderTemplateSelection = () => (
-    <ScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={[styles.stepContent, styles.templateScrollContent]}
-      showsVerticalScrollIndicator
-    >
+    <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Select Template</Text>
       <Text style={styles.stepSubtitle}>Choose a registry template and deployment chain</Text>
 
@@ -458,11 +454,11 @@ export default function CreatePage() {
           );
         })}
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderConfigure = () => (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollInner} showsVerticalScrollIndicator>
+    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollInner} showsVerticalScrollIndicator={false}>
       <Text style={styles.stepTitle}>Configure</Text>
       <Text style={styles.stepSubtitle}>Define template configuration before deployment</Text>
 
@@ -511,7 +507,7 @@ export default function CreatePage() {
 
       <View style={styles.inputLabelRow}>
         <Text style={styles.inputLabel}>Content Policy</Text>
-        <TouchableOpacity onPress={() => openInfo('Content Policy', 'Strictly enforces the type of files that can be anchored to this registry.')}>
+        <TouchableOpacity onPress={() => openInfo('Content Policy', 'Strictly enforces the type of files that can be anchored to this vault. For example, selecting "Document only" will reject any image or video uploads at the smart contract level.')}>
           <Ionicons name="information-circle-outline" size={18} color="#003262" />
         </TouchableOpacity>
       </View>
@@ -553,7 +549,7 @@ export default function CreatePage() {
 
       <View style={styles.inputLabelRow}>
         <Text style={styles.inputLabel}>Required Approvals</Text>
-        <TouchableOpacity onPress={() => openInfo('Required Approvals', 'The number of authorized signers needed to successfully register a new asset. Setting this higher than 1 creates a multi-signature environment for better security.')}>
+        <TouchableOpacity onPress={() => openInfo('Required Approvals', 'The number of authorized signers needed to successfully anchor a new asset. Setting this higher than 1 creates a multi-signature environment for enhanced security.')}>
           <Ionicons name="information-circle-outline" size={18} color="#003262" />
         </TouchableOpacity>
       </View>
@@ -603,7 +599,7 @@ export default function CreatePage() {
   );
 
   const renderReview = () => (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={[styles.scrollInner, styles.reviewScrollInner]} showsVerticalScrollIndicator>
+    <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Review & Deploy</Text>
       <Text style={styles.stepSubtitle}>Deploy directly from connected wallet</Text>
 
@@ -625,7 +621,7 @@ export default function CreatePage() {
         <Text style={styles.walletLabel}>Wallet</Text>
         <Text style={styles.walletAddress}>{isConnected ? address : 'No wallet connected'}</Text>
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderSuccess = () => (
@@ -653,34 +649,40 @@ export default function CreatePage() {
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
 
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.headerText}>Create a New Registry</Text>
+        
+        {/* --- WEB LAYOUT CONSTRAINER --- */}
+        <View style={styles.contentConstrainer}>
+          
+          <Text style={styles.headerText}>Create a New Registry</Text>
 
-        {currentStep !== STEPS.SUCCESS && <View style={styles.topSection}><ProgressBar currentStep={currentStep} /></View>}
+          {currentStep !== STEPS.SUCCESS && <View style={styles.topSection}><ProgressBar currentStep={currentStep} /></View>}
 
-        <View style={styles.mainContentWrapper}>
-          {currentStep === STEPS.SELECT_TEMPLATE && renderTemplateSelection()}
-          {currentStep === STEPS.CONFIGURE && renderConfigure()}
-          {currentStep === STEPS.REVIEW && renderReview()}
-          {currentStep === STEPS.SUCCESS && renderSuccess()}
-        </View>
-
-        {currentStep !== STEPS.SUCCESS && (
-          <View style={styles.navBar}>
-            <View style={styles.navStack}>
-              <TouchableOpacity onPress={handleNext} disabled={submitting}>
-                <Text style={styles.navTextContinue}>
-                  {submitting ? (pendingTxHash ? 'Waiting for confirmation...' : 'Deploying...') : currentStep === STEPS.REVIEW ? 'Deploy & Save' : 'Continue'}
-                </Text>
-              </TouchableOpacity>
-
-              {currentStep > 1 && (
-                <TouchableOpacity onPress={handleBack} style={{ marginTop: 15 }} disabled={submitting}>
-                  <Text style={styles.navTextBack}>Back</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          <View style={styles.mainContentWrapper}>
+            {currentStep === STEPS.SELECT_TEMPLATE && renderTemplateSelection()}
+            {currentStep === STEPS.CONFIGURE && renderConfigure()}
+            {currentStep === STEPS.REVIEW && renderReview()}
+            {currentStep === STEPS.SUCCESS && renderSuccess()}
           </View>
-        )}
+
+          {currentStep !== STEPS.SUCCESS && (
+            <View style={styles.navBar}>
+              <View style={styles.navStack}>
+                <TouchableOpacity onPress={handleNext} disabled={submitting}>
+                  <Text style={styles.navTextContinue}>
+                    {submitting ? (pendingTxHash ? 'Waiting for confirmation...' : 'Deploying...') : currentStep === STEPS.REVIEW ? 'Deploy & Save' : 'Continue'}
+                  </Text>
+                </TouchableOpacity>
+
+                {currentStep > 1 && (
+                  <TouchableOpacity onPress={handleBack} style={{ marginTop: 15 }} disabled={submitting}>
+                    <Text style={styles.navTextBack}>Back</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+        </View>
       </SafeAreaView>
 
       <Modal visible={infoModal.visible} transparent={true} animationType="fade">
@@ -709,16 +711,34 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1, paddingTop: 10 },
-  headerText: { fontSize: 26, fontWeight: '400', color: '#003262', textAlign: 'center', marginTop: 10, marginBottom: 10 },
-  topSection: { alignItems: 'center' },
-  mainContentWrapper: { flex: 1, minHeight: 0, width: '100%', paddingHorizontal: 25 },
+  
+  // 1. CONSTRAINER
+  contentConstrainer: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 800,
+    alignSelf: 'center',
+    ...(Platform.OS === 'web' ? { maxHeight: 850 } : {}), 
+  },
+  
+  headerText: { fontSize: 32, fontWeight: '700', color: '#003262', textAlign: 'center', marginTop: 10, marginBottom: 10 },
+  topSection: { alignItems: 'center', width: '100%', maxWidth: 800, alignSelf: 'center' },
+  
+  // 2. MAIN CONTENT WRAPPER
+  mainContentWrapper: { 
+    flex: 1, 
+    minHeight: 0, 
+    width: '100%', 
+    paddingHorizontal: 25,
+  },
+  
   progressContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   stepCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#003262' },
   stepCircleActive: { borderWidth: 2 },
   stepCircleComplete: { borderWidth: 2 },
   stepText: { color: '#003262', fontWeight: '700' },
   stepLine: { height: 1, width: 60, backgroundColor: '#003262', marginHorizontal: 5 },
-  stepContent: { flex: 1, width: '100%', alignItems: 'center' },
+  stepContent: { flex: 1, alignItems: 'center', width: '100%' },
   stepTitle: { fontSize: 20, fontWeight: '800', color: '#003262', textAlign: 'center', alignSelf: 'center' },
   stepSubtitle: { fontSize: 14, color: '#003262', marginBottom: 18, textAlign: 'center', alignSelf: 'center' },
   selectionContainer: { gap: 12, marginTop: 8, width: '100%' },
@@ -729,11 +749,13 @@ const styles = StyleSheet.create({
   boxDescription: { fontSize: 13, color: '#003262' },
   scrollContainer: { flex: 1, width: '100%' },
   scrollInner: { paddingBottom: 30 },
-  reviewScrollInner: { paddingBottom: 56 },
   inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, marginBottom: 6, alignSelf: 'flex-start' },
   inputLabel: { fontSize: 16, fontWeight: '700', color: '#003262' },
   input: { width: '100%', backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 18, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#003262', marginBottom: 10, color: '#003262' },
+  
+  // 3. CHIP ALIGNMENT
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', width: '100%', marginBottom: 6 },
+  
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: '#003262', backgroundColor: 'rgba(125,142,196,0.35)' },
   chipActive: { backgroundColor: '#7d8ec4' },
   chipText: { color: '#003262', fontWeight: '600' },
@@ -747,10 +769,21 @@ const styles = StyleSheet.create({
   walletAddress: { fontSize: 12, color: '#003262', opacity: 0.85 },
   successButtonsContainer: { marginTop: 28, alignItems: 'center', gap: 16 },
   textButton: { color: '#003262', fontSize: 16, fontWeight: '600' },
-  navBar: { alignItems: 'center', justifyContent: 'center', paddingBottom: Platform.OS === 'web' ? 24 : 110, paddingTop: 10 },
+  
+  // 4. NAVBAR
+  navBar: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingBottom: Platform.OS === 'web' ? 40 : 110, 
+    paddingTop: 10,
+    width: '100%',
+  },
+  
   navStack: { alignItems: 'center' },
   navTextContinue: { fontSize: 18, color: '#003262', fontWeight: '600' },
   navTextBack: { fontSize: 16, color: '#003262', fontWeight: '400' },
+  
+  // Info Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 50, 98, 0.4)',
@@ -798,5 +831,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   }
 });
-
-

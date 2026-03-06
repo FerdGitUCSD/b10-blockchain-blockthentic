@@ -558,10 +558,10 @@ export default function HomePage() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
-  safeArea: { flex: 1, paddingTop: 60 },
-  contentWrapper: { flex: 1, paddingHorizontal: 25, paddingTop: 20 },
+  safeArea: { flex: 1, paddingTop: 30 },
+  contentWrapper: { flex: 1, paddingHorizontal: 25, paddingTop: 0 },
   header: { alignItems: 'center', marginBottom: 30 },
-  greetingText: { fontSize: 36, color: '#003262', fontWeight: '400' },
+  greetingText: { fontSize: 32, color: '#003262', fontWeight: '700' },
   
   // Section Headers & Search
   sectionHeaderContainer: {

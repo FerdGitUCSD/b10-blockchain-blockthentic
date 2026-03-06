@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1 },
   contentContainer: { paddingHorizontal: 25, paddingTop: 20, alignItems: 'center', paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
-  headerTitle: { fontSize: 36, color: '#003262', fontWeight: '400', paddingBottom: 30 },
+  headerTitle: { fontSize: 32, color: '#003262', fontWeight: '700', paddingBottom: 30 },
   userInfoSection: { width: '100%', alignItems: 'flex-start', marginBottom: 20 },
   userName: { fontSize: 28, fontWeight: '800', color: '#003262', marginBottom: 4 },
   userEmail: { fontSize: 16, color: '#555', marginBottom: 20 },
